@@ -1,10 +1,10 @@
-extern crate regex;
+extern crate streaming_regex;
 
 use std::io::{self, Read};
 
 macro_rules! regex {
     ($re:expr) => {{
-        use regex::internal::ExecBuilder;
+        use streaming_regex::internal::ExecBuilder;
         ExecBuilder::new($re).build().unwrap().into_regex()
     }}
 }

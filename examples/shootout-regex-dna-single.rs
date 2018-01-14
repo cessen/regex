@@ -5,11 +5,11 @@
 // contributed by TeXitoi
 // contributed by BurntSushi
 
-extern crate regex;
+extern crate streaming_regex;
 
 use std::io::{self, Read};
 
-macro_rules! regex { ($re:expr) => { ::regex::Regex::new($re).unwrap() } }
+macro_rules! regex { ($re:expr) => { ::streaming_regex::Regex::new($re).unwrap() } }
 
 fn main() {
     let mut seq = String::with_capacity(50 * (1 << 20));

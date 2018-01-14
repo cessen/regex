@@ -9,18 +9,18 @@
 // except according to those terms.
 
 extern crate rand;
-extern crate regex;
+extern crate streaming_regex;
 
 macro_rules! regex_new {
     ($re:expr) => {{
-        use regex::bytes::Regex;
+        use streaming_regex::bytes::Regex;
         Regex::new($re)
     }}
 }
 
 macro_rules! regex_set_new {
     ($res:expr) => {{
-        use regex::bytes::RegexSet;
+        use streaming_regex::bytes::RegexSet;
         RegexSet::new($res)
     }}
 }

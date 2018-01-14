@@ -5,7 +5,7 @@ macro_rules! match_text { ($text:expr) => { $text.as_str() } }
 
 macro_rules! no_expand {
     ($text:expr) => {{
-        use regex::NoExpand;
+        use streaming_regex::NoExpand;
         NoExpand(text!($text))
     }}
 }

@@ -58,5 +58,5 @@ matiter!(invalidutf8_anchor3,
 // See https://github.com/rust-lang/regex/issues/303
 #[test]
 fn negated_full_byte_range() {
-     assert!(::regex::bytes::Regex::new(r#"(?-u)[^\x00-\xff]"#).is_err());
+     assert!(::streaming_regex::bytes::Regex::new(r#"(?-u)[^\x00-\xff]"#).is_err());
 }

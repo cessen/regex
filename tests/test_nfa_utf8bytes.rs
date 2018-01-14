@@ -11,11 +11,11 @@
 #![cfg_attr(feature = "pattern", feature(pattern))]
 
 extern crate rand;
-extern crate regex;
+extern crate streaming_regex;
 
 macro_rules! regex_new {
     ($re:expr) => {{
-        use regex::internal::ExecBuilder;
+        use streaming_regex::internal::ExecBuilder;
         ExecBuilder::new($re).nfa().bytes(true).build().map(|e| e.into_regex())
     }}
 }
@@ -28,7 +28,7 @@ macro_rules! regex {
 
 macro_rules! regex_set_new {
     ($re:expr) => {{
-        use regex::internal::ExecBuilder;
+        use streaming_regex::internal::ExecBuilder;
         ExecBuilder::new_many($re)
             .nfa().bytes(true).build().map(|e| e.into_regex_set())
     }}

@@ -7,7 +7,7 @@ macro_rules! bytes { ($text:expr) => { $text } }
 
 macro_rules! no_expand {
     ($text:expr) => {{
-        use regex::bytes::NoExpand;
+        use streaming_regex::bytes::NoExpand;
         NoExpand(text!($text))
     }}
 }

@@ -10,13 +10,13 @@
 // replacing them with a single linear scan. i.e., it re-implements
 // `replace_all`. As a result, this is around 25% faster. ---AG
 
-extern crate regex;
+extern crate streaming_regex;
 
 use std::io::{self, Read};
 use std::sync::Arc;
 use std::thread;
 
-macro_rules! regex { ($re:expr) => { ::regex::Regex::new($re).unwrap() } }
+macro_rules! regex { ($re:expr) => { ::streaming_regex::Regex::new($re).unwrap() } }
 
 fn main() {
     let mut seq = String::with_capacity(50 * (1 << 20));

@@ -29,13 +29,13 @@ used by adding `regex` to your dependencies in your project's `Cargo.toml`.
 
 ```toml
 [dependencies]
-regex = "0.2"
+streaming_regex = "0.2"
 ```
 
 and this to your crate root:
 
 ```rust
-extern crate regex;
+extern crate streaming_regex;
 ```
 
 # Example: find a date
@@ -45,7 +45,7 @@ expression and then using it to search, split or replace text. For example,
 to confirm that some text resembles a date:
 
 ```rust
-use regex::Regex;
+use streaming_regex::Regex;
 let re = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
 assert!(re.is_match("2014-01-01"));
 ```
@@ -79,9 +79,9 @@ For example:
 
 ```rust
 #[macro_use] extern crate lazy_static;
-extern crate regex;
+extern crate streaming_regex;
 
-use regex::Regex;
+use streaming_regex::Regex;
 
 fn some_helper_function(text: &str) -> bool {
     lazy_static! {
@@ -104,7 +104,7 @@ matches. For example, to find all dates in a string and be able to access
 them by their component pieces:
 
 ```rust
-# extern crate regex; use regex::Regex;
+# extern crate streaming_regex; use streaming_regex::Regex;
 # fn main() {
 let re = Regex::new(r"(\d{4})-(\d{2})-(\d{2})").unwrap();
 let text = "2012-03-14, 2013-01-01 and 2014-07-05";
@@ -129,7 +129,7 @@ clearer, we can *name*  our capture groups and use those names as variables
 in our replacement text:
 
 ```rust
-# extern crate regex; use regex::Regex;
+# extern crate streaming_regex; use streaming_regex::Regex;
 # fn main() {
 let re = Regex::new(r"(?P<y>\d{4})-(?P<m>\d{2})-(?P<d>\d{2})").unwrap();
 let before = "2012-03-14, 2013-01-01 and 2014-07-05";
@@ -146,7 +146,7 @@ Note that if your regex gets complicated, you can use the `x` flag to
 enable insigificant whitespace mode, which also lets you write comments:
 
 ```rust
-# extern crate regex; use regex::Regex;
+# extern crate streaming_regex; use streaming_regex::Regex;
 # fn main() {
 let re = Regex::new(r"(?x)
   (?P<y>\d{4}) # the year
@@ -171,7 +171,7 @@ This demonstrates how to use a `RegexSet` to match multiple (possibly
 overlapping) regular expressions in a single scan of the search text:
 
 ```rust
-use regex::RegexSet;
+use streaming_regex::RegexSet;
 
 let set = RegexSet::new(&[
     r"\w+",
@@ -226,7 +226,7 @@ Unicode scalar values. This means you can use Unicode characters directly
 in your expression:
 
 ```rust
-# extern crate regex; use regex::Regex;
+# extern crate streaming_regex; use streaming_regex::Regex;
 # fn main() {
 let re = Regex::new(r"(?i)Δ+").unwrap();
 let mat = re.find("ΔδΔ").unwrap();
@@ -253,7 +253,7 @@ classes. For example, you can match a sequence of numerals, Greek or
 Cherokee letters:
 
 ```rust
-# extern crate regex; use regex::Regex;
+# extern crate streaming_regex; use streaming_regex::Regex;
 # fn main() {
 let re = Regex::new(r"[\pN\p{Greek}\p{Cherokee}]+").unwrap();
 let mat = re.find("abcΔᎠβⅠᏴγδⅡxyz").unwrap();
@@ -386,7 +386,7 @@ Flags can be toggled within a pattern. Here's an example that matches
 case-insensitively for the first part but case-sensitively for the second part:
 
 ```rust
-# extern crate regex; use regex::Regex;
+# extern crate streaming_regex; use streaming_regex::Regex;
 # fn main() {
 let re = Regex::new(r"(?i)a+(?-i)b+").unwrap();
 let cap = re.captures("AaAaAbbBBBb").unwrap();
@@ -401,7 +401,7 @@ Multi-line mode means `^` and `$` no longer match just at the beginning/end of
 the input, but at the beginning/end of lines:
 
 ```
-# use regex::Regex;
+# use streaming_regex::Regex;
 let re = Regex::new(r"(?m)^line \d+").unwrap();
 let m = re.find("line one\nline 2\n").unwrap();
 assert_eq!(m.as_str(), "line 2");
@@ -410,7 +410,7 @@ assert_eq!(m.as_str(), "line 2");
 Note that `^` matches after new lines, even at the end of input:
 
 ```
-# use regex::Regex;
+# use streaming_regex::Regex;
 let re = Regex::new(r"(?m)^").unwrap();
 let m = re.find_iter("test\n").last().unwrap();
 assert_eq!((m.start(), m.end()), (5, 5));
@@ -420,7 +420,7 @@ Here is an example that uses an ASCII word boundary instead of a Unicode
 word boundary:
 
 ```rust
-# extern crate regex; use regex::Regex;
+# extern crate streaming_regex; use streaming_regex::Regex;
 # fn main() {
 let re = Regex::new(r"(?-u:\b).+(?-u:\b)").unwrap();
 let cap = re.captures("$$abc$$").unwrap();
@@ -547,7 +547,7 @@ matching invalid UTF-8 bytes.
 This shows how to find all null-terminated strings in a slice of bytes:
 
 ```rust
-# use regex::bytes::Regex;
+# use streaming_regex::bytes::Regex;
 let re = Regex::new(r"(?-u)(?P<cstr>[^\x00]+)\x00").unwrap();
 let text = b"foo\x00bar\x00baz\x00";
 
@@ -567,7 +567,7 @@ string (e.g., to extract a title from a Matroska file):
 
 ```rust
 # use std::str;
-# use regex::bytes::Regex;
+# use streaming_regex::bytes::Regex;
 let re = Regex::new(
     r"(?-u)\x7b\xa9(?:[\x80-\xfe]|[\x40-\xff].)(?u:(.*))"
 ).unwrap();

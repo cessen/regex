@@ -11,7 +11,7 @@
 #![cfg_attr(feature = "pattern", feature(pattern))]
 
 extern crate rand;
-extern crate regex;
+extern crate streaming_regex;
 
 // Due to macro scoping rules, this definition only applies for the modules
 // defined below. Effectively, it allows us to use the same tests for both
@@ -22,7 +22,7 @@ extern crate regex;
 // regex and the input. Other dynamic tests explicitly set the engine to use.
 macro_rules! regex_new {
     ($re:expr) => {{
-        use regex::Regex;
+        use streaming_regex::Regex;
         Regex::new($re)
     }}
 }
@@ -35,7 +35,7 @@ macro_rules! regex {
 
 macro_rules! regex_set_new {
     ($re:expr) => {{
-        use regex::RegexSet;
+        use streaming_regex::RegexSet;
         RegexSet::new($re)
     }}
 }
@@ -70,8 +70,8 @@ mod word_boundary_unicode;
 
 #[test]
 fn disallow_non_utf8() {
-    assert!(regex::Regex::new(r"(?-u)\xFF").is_err());
-    assert!(regex::Regex::new(r"(?-u).").is_err());
-    assert!(regex::Regex::new(r"(?-u)[\xFF]").is_err());
-    assert!(regex::Regex::new(r"(?-u)☃").is_err());
+    assert!(streaming_regex::Regex::new(r"(?-u)\xFF").is_err());
+    assert!(streaming_regex::Regex::new(r"(?-u).").is_err());
+    assert!(streaming_regex::Regex::new(r"(?-u)[\xFF]").is_err());
+    assert!(streaming_regex::Regex::new(r"(?-u)☃").is_err());
 }

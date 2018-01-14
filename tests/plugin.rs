@@ -8,7 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use regex::Regex;
+use streaming_regex::Regex;
 static RE: Regex = regex!(r"\d+");
 
 #[test]
