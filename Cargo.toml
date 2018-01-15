@@ -61,22 +61,6 @@ name = "nfa-utf8bytes"
 path = "tests/test_nfa_bytes.rs"
 name = "nfa-bytes"
 
-# Run the test suite on the backtracking engine over Unicode codepoints.
-[[test]]
-path = "tests/test_backtrack.rs"
-name = "backtrack"
-
-# Run the test suite on the backtracking engine over bytes that match UTF-8
-# only.
-[[test]]
-path = "tests/test_backtrack_utf8bytes.rs"
-name = "backtrack-utf8bytes"
-
-# Run the test suite on the backtracking engine over arbitrary bytes.
-[[test]]
-path = "tests/test_backtrack_bytes.rs"
-name = "backtrack-bytes"
-
 [profile.release]
 debug = true
 

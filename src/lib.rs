@@ -625,10 +625,8 @@ pub mod bytes {
     pub use re_trait::Locations;
 }
 
-mod backtrack;
 mod utf8;
 mod compile;
-mod dfa;
 mod error;
 mod exec;
 mod expand;
