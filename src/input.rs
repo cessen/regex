@@ -16,7 +16,6 @@ use std::u32;
 
 use syntax;
 
-use literals::LiteralSearcher;
 use prog::InstEmptyLook;
 use utf8::{decode_utf8, decode_last_utf8};
 
@@ -94,13 +93,6 @@ pub trait Input {
     /// input position given.
     fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool;
 
-    /// Scan the input for a matching prefix.
-    fn prefix_at(
-        &self,
-        prefixes: &LiteralSearcher,
-        at: InputAt,
-    ) -> Option<InputAt>;
-
     /// The number of bytes in the input.
     fn len(&self) -> usize;
 
@@ -120,14 +112,6 @@ impl<'a, T: Input> Input for &'a T {
 
     fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool {
         (**self).is_empty_match(at, empty)
-    }
-
-    fn prefix_at(
-        &self,
-        prefixes: &LiteralSearcher,
-        at: InputAt,
-    ) -> Option<InputAt> {
-        (**self).prefix_at(prefixes, at)
     }
 
     fn len(&self) -> usize { (**self).len() }
@@ -203,14 +187,6 @@ impl<'t> Input for CharInput<'t> {
                 c1.is_word_byte() == c2.is_word_byte()
             }
         }
-    }
-
-    fn prefix_at(
-        &self,
-        prefixes: &LiteralSearcher,
-        at: InputAt,
-    ) -> Option<InputAt> {
-        prefixes.find(&self[at.pos()..]).map(|(s, _)| self.at(at.pos() + s))
     }
 
     fn len(&self) -> usize {
@@ -315,14 +291,6 @@ impl<'t> Input for ByteInput<'t> {
                 c1.is_word_byte() == c2.is_word_byte()
             }
         }
-    }
-
-    fn prefix_at(
-        &self,
-        prefixes: &LiteralSearcher,
-        at: InputAt,
-    ) -> Option<InputAt> {
-        prefixes.find(&self[at.pos()..]).map(|(s, _)| self.at(at.pos() + s))
     }
 
     fn len(&self) -> usize {

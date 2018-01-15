@@ -32,6 +32,10 @@ quickcheck = { version = "0.6", default-features = false }
 # For generating random test data.
 rand = "0.4"
 
+[features]
+# Enable to use the unstable pattern traits defined in std.
+pattern = []
+
 # Run the test suite on the default behavior of Regex::new.
 # This includes a mish mash of NFAs and DFAs, which are chosen automatically
 # based on the regex. We test both of the NFA implementations by forcing their

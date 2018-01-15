@@ -142,7 +142,7 @@ impl<'r, I: Input> Fsm<'r, I> {
         nlist.set.clear();
 'LOOP:  loop {
             if clist.set.is_empty() {
-                // Three ways to bail out when our current set of threads is
+                // Two ways to bail out when our current set of threads is
                 // empty.
                 //
                 // 1. We have a match---so we're done exploring any possible
@@ -156,16 +156,6 @@ impl<'r, I: Input> Fsm<'r, I> {
                     || all_matched
                     || (!at.is_start() && self.prog.is_anchored_start) {
                     break;
-                }
-
-                // 3. If there's a literal prefix for the program, try to
-                //    jump ahead quickly. If it can't be found, then we can
-                //    bail out early.
-                if !self.prog.prefixes.is_empty() {
-                    at = match self.input.prefix_at(&self.prog.prefixes, at) {
-                        None => break,
-                        Some(at) => at,
-                    };
                 }
             }
 

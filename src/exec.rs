@@ -18,7 +18,6 @@ use syntax::{Expr, ExprBuilder, Literals};
 use compile::Compiler;
 use error::Error;
 use input::{ByteInput, CharInput};
-use literals::LiteralSearcher;
 use pikevm;
 use prog::Program;
 use re_builder::RegexOptions;
@@ -66,7 +65,6 @@ struct ExecReadOnly {
     /// N.B. It is not possibly to make this byte-based from the public API.
     /// It is only used for testing byte based programs in the NFA simulations.
     nfa: Program,
-    suffixes: LiteralSearcher,
     /// match_type encodes as much upfront knowledge about how we're going to
     /// execute a search as possible.
     match_type: MatchType,
@@ -86,8 +84,6 @@ pub struct ExecBuilder {
 /// literals.
 struct Parsed {
     exprs: Vec<Expr>,
-    prefixes: Literals,
-    suffixes: Literals,
     bytes: bool,
 }
 
@@ -233,8 +229,6 @@ impl ExecBuilder {
         }
         Ok(Parsed {
             exprs: exprs,
-            prefixes: prefixes.unwrap_or_else(Literals::empty),
-            suffixes: suffixes.unwrap_or_else(Literals::empty),
             bytes: bytes,
         })
     }
@@ -247,27 +241,21 @@ impl ExecBuilder {
             let ro = Arc::new(ExecReadOnly {
                 res: vec![],
                 nfa: Program::new(),
-                suffixes: LiteralSearcher::empty(),
                 match_type: MatchType::Nothing,
             });
             return Ok(Exec { ro: ro, cache: CachedThreadLocal::new() });
         }
         let parsed = try!(self.parse());
-        let mut nfa = try!(
+        let nfa = try!(
             Compiler::new()
                      .size_limit(self.options.size_limit)
                      .bytes(self.bytes || parsed.bytes)
                      .only_utf8(self.only_utf8)
                      .compile(&parsed.exprs));
 
-        let prefixes = parsed.prefixes.unambiguous_prefixes();
-        let suffixes = parsed.suffixes.unambiguous_suffixes();
-        nfa.prefixes = LiteralSearcher::prefixes(prefixes);
-
         let mut ro = ExecReadOnly {
             res: self.options.pats,
             nfa: nfa,
-            suffixes: LiteralSearcher::suffixes(suffixes),
             match_type: MatchType::Nothing,
         };
         ro.match_type = ro.choose_match_type(self.match_type);
@@ -330,9 +318,6 @@ impl<'c> RegularExpression for ExecNoSync<'c> {
     /// end location of the correct leftmost-first match.
     #[inline(always)] // reduces constant overhead
     fn shortest_match_at(&self, text: &[u8], start: usize) -> Option<usize> {
-        if !self.is_anchor_end_match(text) {
-            return None;
-        }
         match self.ro.match_type {
             MatchType::Nfa => self.shortest_nfa(text, start),
             MatchType::Nothing => None,
@@ -345,9 +330,6 @@ impl<'c> RegularExpression for ExecNoSync<'c> {
     /// shortest_match(...).is_some().
     #[inline(always)] // reduces constant overhead
     fn is_match_at(&self, text: &[u8], start: usize) -> bool {
-        if !self.is_anchor_end_match(text) {
-            return false;
-        }
         // We need to do this dance because shortest_match relies on the NFA
         // filling in captures[1], but a RegexSet has no captures. In other
         // words, a RegexSet can't (currently) use shortest_match. ---AG
@@ -361,9 +343,6 @@ impl<'c> RegularExpression for ExecNoSync<'c> {
     /// at the given location.
     #[inline(always)] // reduces constant overhead
     fn find_at(&self, text: &[u8], start: usize) -> Option<(usize, usize)> {
-        if !self.is_anchor_end_match(text) {
-            return None;
-        }
         match self.ro.match_type {
             MatchType::Nfa => self.find_nfa(text, start),
             MatchType::Nothing => None,
@@ -400,9 +379,6 @@ impl<'c> RegularExpression for ExecNoSync<'c> {
                 });
             }
             _ => {} // fallthrough
-        }
-        if !self.is_anchor_end_match(text) {
-            return None;
         }
         match self.ro.match_type {
             MatchType::Nfa => {
@@ -517,25 +493,10 @@ impl<'c> ExecNoSync<'c> {
         start: usize,
     ) -> bool {
         use self::MatchType::*;
-        if !self.is_anchor_end_match(text) {
-            return false;
-        }
         match self.ro.match_type {
             Nfa => self.exec_pikevm(matches, &mut [], false, text, start),
             Nothing => false,
         }
-    }
-
-    #[inline(always)] // reduces constant overhead
-    fn is_anchor_end_match(&self, text: &[u8]) -> bool {
-        // Only do this check if the haystack is big (>1MB).
-        if text.len() > (1<<20) && self.ro.nfa.is_anchored_end {
-            let lcs = self.ro.suffixes.lcs();
-            if lcs.len() >= 1 && !lcs.is_suffix(text) {
-                return false;
-            }
-        }
-        true
     }
 
     pub fn capture_name_idx(&self) -> &Arc<HashMap<String, usize>> {

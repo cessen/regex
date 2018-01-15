@@ -7,7 +7,6 @@ use std::slice;
 use std::sync::Arc;
 
 use input::Char;
-use literals::LiteralSearcher;
 
 /// `InstPtr` represents the index of an instruction in a regex program.
 pub type InstPtr = usize;
@@ -47,8 +46,6 @@ pub struct Program {
     pub is_anchored_end: bool,
     /// Whether this program contains a Unicode word boundary instruction.
     pub has_unicode_word_boundary: bool,
-    /// A possibly empty machine for very quickly matching prefix literals.
-    pub prefixes: LiteralSearcher,
 }
 
 impl Program {
@@ -67,7 +64,6 @@ impl Program {
             is_anchored_start: false,
             is_anchored_end: false,
             has_unicode_word_boundary: false,
-            prefixes: LiteralSearcher::empty(),
         }
     }
 
@@ -122,7 +118,6 @@ impl Program {
         + (self.capture_name_idx.len() *
            (mem::size_of::<String>() + mem::size_of::<usize>()))
         + (self.byte_classes.len() * mem::size_of::<u8>())
-        + self.prefixes.approximate_size()
     }
 }
 
