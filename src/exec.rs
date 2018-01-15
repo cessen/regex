@@ -143,7 +143,7 @@ impl ExecBuilder {
     pub fn nfa(mut self) -> Self {
         self.match_type = Some(MatchType::Nfa);
         self
-}
+    }
 
     /// Compiles byte based programs for use with the NFA matching engines.
     ///
