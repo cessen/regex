@@ -81,8 +81,6 @@ impl Compiler {
     /// the neither the `Char` nor `Ranges` instructions are produced.
     /// Conversely, when producing a Unicode scalar value machine, the `Bytes`
     /// instruction is never produced.
-    ///
-    /// Note that `dfa(true)` implies `bytes(true)`.
     pub fn bytes(mut self, yes: bool) -> Self {
         self.compiled.is_bytes = yes;
         self
@@ -94,25 +92,6 @@ impl Compiler {
     /// valid UTF-8 bytes.
     pub fn only_utf8(mut self, yes: bool) -> Self {
         self.compiled.only_utf8 = yes;
-        self
-    }
-
-    /// When set, the machine returned is suitable for use in the DFA matching
-    /// engine.
-    ///
-    /// In particular, this ensures that if the regex is not anchored in the
-    /// beginning, then a preceding `.*?` is included in the program. (The NFA
-    /// based engines handle the preceding `.*?` explicitly, which is difficult
-    /// or impossible in the DFA engine.)
-    pub fn dfa(mut self, yes: bool) -> Self {
-        self.compiled.is_dfa = yes;
-        self
-    }
-
-    /// When set, the machine returned is suitable for matching text in
-    /// reverse. In particular, all concatenations are flipped.
-    pub fn reverse(mut self, yes: bool) -> Self {
-        self.compiled.is_reverse = yes;
         self
     }
 
@@ -139,20 +118,11 @@ impl Compiler {
         // add a `.*?` before the first capture group.
         // Other matching engines handle this by baking the logic into the
         // matching engine itself.
-        let mut dotstar_patch = Patch { hole: Hole::None, entry: 0 };
         self.compiled.is_anchored_start = expr.is_anchored_start();
         self.compiled.is_anchored_end = expr.is_anchored_end();
-        if self.compiled.needs_dotstar() {
-            dotstar_patch = try!(self.c_dotstar());
-            self.compiled.start = dotstar_patch.entry;
-        }
         self.compiled.captures = vec![None];
         let patch = try!(self.c_capture(0, expr));
-        if self.compiled.needs_dotstar() {
-            self.fill(dotstar_patch.hole, patch.entry);
-        } else {
-            self.compiled.start = patch.entry;
-        }
+        self.compiled.start = patch.entry;
         self.fill_to_next(patch.hole);
         self.compiled.matches = vec![self.insts.len()];
         self.push_compiled(Inst::Match(0));
@@ -169,13 +139,8 @@ impl Compiler {
             exprs.iter().all(|e| e.is_anchored_start());
         self.compiled.is_anchored_end =
             exprs.iter().all(|e| e.is_anchored_end());
-        let mut dotstar_patch = Patch { hole: Hole::None, entry: 0 };
-        if self.compiled.needs_dotstar() {
-            dotstar_patch = try!(self.c_dotstar());
-            self.compiled.start = dotstar_patch.entry;
-        } else {
-            self.compiled.start = 0; // first instruction is always split
-        }
+        let dotstar_patch = Patch { hole: Hole::None, entry: 0 };
+        self.compiled.start = 0; // first instruction is always split
         self.fill_to_next(dotstar_patch.hole);
 
         let mut prev_hole = Hole::None;
@@ -291,15 +256,7 @@ impl Compiler {
             ClassBytes(ref cls) => {
                 self.c_class_bytes(cls)
             }
-            StartLine if self.compiled.is_reverse => {
-                self.byte_classes.set_range(b'\n', b'\n');
-                self.c_empty_look(prog::EmptyLook::EndLine)
-            }
             StartLine => {
-                self.byte_classes.set_range(b'\n', b'\n');
-                self.c_empty_look(prog::EmptyLook::StartLine)
-            }
-            EndLine if self.compiled.is_reverse => {
                 self.byte_classes.set_range(b'\n', b'\n');
                 self.c_empty_look(prog::EmptyLook::StartLine)
             }
@@ -307,13 +264,7 @@ impl Compiler {
                 self.byte_classes.set_range(b'\n', b'\n');
                 self.c_empty_look(prog::EmptyLook::EndLine)
             }
-            StartText if self.compiled.is_reverse => {
-                self.c_empty_look(prog::EmptyLook::EndText)
-            }
             StartText => {
-                self.c_empty_look(prog::EmptyLook::StartText)
-            }
-            EndText if self.compiled.is_reverse => {
                 self.c_empty_look(prog::EmptyLook::StartText)
             }
             EndText => {
@@ -350,11 +301,7 @@ impl Compiler {
                 self.c_capture(2 * i, e)
             }
             Concat(ref es) => {
-                if self.compiled.is_reverse {
-                    self.c_concat(es.iter().rev())
-                } else {
-                    self.c_concat(es)
-                }
+                self.c_concat(es)
             }
             Alternate(ref es) => self.c_alternate(&**es),
             Repeat { ref e, r, greedy } => self.c_repeat(e, r, greedy),
@@ -362,7 +309,7 @@ impl Compiler {
     }
 
     fn c_capture(&mut self, first_slot: usize, expr: &Expr) -> Result {
-        if self.num_exprs > 1 || self.compiled.is_dfa {
+        if self.num_exprs > 1 {
             // Don't ever compile Save instructions for regex sets because
             // they are never used. They are also never used in DFA programs
             // because DFAs can't handle captures.
@@ -378,30 +325,9 @@ impl Compiler {
         }
     }
 
-    fn c_dotstar(&mut self) -> Result {
-        Ok(if !self.compiled.only_utf8() {
-            try!(self.c(&Expr::Repeat {
-                e: Box::new(Expr::AnyByte),
-                r: Repeater::ZeroOrMore,
-                greedy: false,
-            }))
-        } else {
-            try!(self.c(&Expr::Repeat {
-                e: Box::new(Expr::AnyChar),
-                r: Repeater::ZeroOrMore,
-                greedy: false,
-            }))
-        })
-    }
-
     fn c_literal(&mut self, chars: &[char], casei: bool) -> Result {
         debug_assert!(!chars.is_empty());
-        let mut chars: Box<Iterator<Item=&char>> =
-            if self.compiled.is_reverse {
-                Box::new(chars.iter().rev())
-            } else {
-                Box::new(chars.iter())
-            };
+        let mut chars: Box<Iterator<Item=&char>> = Box::new(chars.iter());
         let first = *chars.next().expect("non-empty literal");
         let Patch { mut hole, entry } = try!(self.c_char(first, casei));
         for &c in chars {
@@ -443,12 +369,7 @@ impl Compiler {
 
     fn c_bytes(&mut self, bytes: &[u8], casei: bool) -> Result {
         debug_assert!(!bytes.is_empty());
-        let mut bytes: Box<Iterator<Item=&u8>> =
-            if self.compiled.is_reverse {
-                Box::new(bytes.iter().rev())
-            } else {
-                Box::new(bytes.iter())
-            };
+        let mut bytes: Box<Iterator<Item=&u8>> = Box::new(bytes.iter());
         let first = *bytes.next().expect("non-empty literal");
         let Patch { mut hole, entry } = try!(self.c_byte(first, casei));
         for &b in bytes {
@@ -922,11 +843,7 @@ impl<'a, 'b> CompileClass<'a, 'b> {
     }
 
     fn c_utf8_seq(&mut self, seq: &Utf8Sequence) -> Result {
-        if self.c.compiled.is_reverse {
-            self.c_utf8_seq_(seq)
-        } else {
-            self.c_utf8_seq_(seq.into_iter().rev())
-        }
+        self.c_utf8_seq_(seq.into_iter().rev())
     }
 
     fn c_utf8_seq_<'r, I>(&mut self, seq: I) -> Result

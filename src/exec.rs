@@ -259,26 +259,10 @@ impl ExecBuilder {
                      .bytes(self.bytes || parsed.bytes)
                      .only_utf8(self.only_utf8)
                      .compile(&parsed.exprs));
-        let mut dfa = try!(
-            Compiler::new()
-                     .size_limit(self.options.size_limit)
-                     .dfa(true)
-                     .only_utf8(self.only_utf8)
-                     .compile(&parsed.exprs));
-        let mut dfa_reverse = try!(
-            Compiler::new()
-                     .size_limit(self.options.size_limit)
-                     .dfa(true)
-                     .only_utf8(self.only_utf8)
-                     .reverse(true)
-                     .compile(&parsed.exprs));
 
         let prefixes = parsed.prefixes.unambiguous_prefixes();
         let suffixes = parsed.suffixes.unambiguous_suffixes();
         nfa.prefixes = LiteralSearcher::prefixes(prefixes);
-        dfa.prefixes = nfa.prefixes.clone();
-        dfa.dfa_size_limit = self.options.dfa_size_limit;
-        dfa_reverse.dfa_size_limit = self.options.dfa_size_limit;
 
         let mut ro = ExecReadOnly {
             res: self.options.pats,

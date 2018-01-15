@@ -14,7 +14,6 @@
 pub struct RegexOptions {
     pub pats: Vec<String>,
     pub size_limit: usize,
-    pub dfa_size_limit: usize,
     pub case_insensitive: bool,
     pub multi_line: bool,
     pub dot_matches_new_line: bool,
@@ -28,7 +27,6 @@ impl Default for RegexOptions {
         RegexOptions {
             pats: vec![],
             size_limit: 10 * (1<<20),
-            dfa_size_limit: 2 * (1<<20),
             case_insensitive: false,
             multi_line: false,
             dot_matches_new_line: false,
@@ -149,20 +147,6 @@ impl RegexBuilder {
         self.0.size_limit = limit;
         self
     }
-
-    /// Set the approximate size of the cache used by the DFA.
-    ///
-    /// This roughly corresponds to the number of bytes that the DFA will
-    /// use while searching.
-    ///
-    /// Note that this is a *per thread* limit. There is no way to set a global
-    /// limit. In particular, if a regex is used from multiple threads
-    /// simultaneously, then each thread may use up to the number of bytes
-    /// specified here.
-    pub fn dfa_size_limit(&mut self, limit: usize) -> &mut RegexBuilder {
-        self.0.dfa_size_limit = limit;
-        self
-    }
 }
         }
     }
@@ -258,20 +242,6 @@ impl RegexSetBuilder {
     /// compilation error is returned.
     pub fn size_limit(&mut self, limit: usize) -> &mut RegexSetBuilder {
         self.0.size_limit = limit;
-        self
-    }
-
-    /// Set the approximate size of the cache used by the DFA.
-    ///
-    /// This roughly corresponds to the number of bytes that the DFA will
-    /// use while searching.
-    ///
-    /// Note that this is a *per thread* limit. There is no way to set a global
-    /// limit. In particular, if a regex is used from multiple threads
-    /// simulanteously, then each thread may use up to the number of bytes
-    /// specified here.
-    pub fn dfa_size_limit(&mut self, limit: usize) -> &mut RegexSetBuilder {
-        self.0.dfa_size_limit = limit;
         self
     }
 }

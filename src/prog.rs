@@ -41,13 +41,6 @@ pub struct Program {
     /// When true, this program uses byte range instructions instead of Unicode
     /// range instructions.
     pub is_bytes: bool,
-    /// When true, the program is compiled for DFA matching. For example, this
-    /// implies `is_bytes` and also inserts a preceding `.*?` for unanchored
-    /// regexes.
-    pub is_dfa: bool,
-    /// When true, the program matches text in reverse (for use only in the
-    /// DFA).
-    pub is_reverse: bool,
     /// Whether the regex must match from the start of the input.
     pub is_anchored_start: bool,
     /// Whether the regex must match at the end of the input.
@@ -56,22 +49,6 @@ pub struct Program {
     pub has_unicode_word_boundary: bool,
     /// A possibly empty machine for very quickly matching prefix literals.
     pub prefixes: LiteralSearcher,
-    /// A limit on the size of the cache that the DFA is allowed to use while
-    /// matching.
-    ///
-    /// The cache limit specifies approximately how much space we're willing to
-    /// give to the state cache. Once the state cache exceeds the size, it is
-    /// wiped and all states must be re-computed.
-    ///
-    /// Note that this value does not impact correctness. It can be set to 0
-    /// and the DFA will run just fine. (It will only ever store exactly one
-    /// state in the cache, and will likely run very slowly, but it will work.)
-    ///
-    /// Also note that this limit is *per thread of execution*. That is,
-    /// if the same regex is used to search text across multiple threads
-    /// simultaneously, then the DFA cache is not shared. Instead, copies are
-    /// made.
-    pub dfa_size_limit: usize,
 }
 
 impl Program {
@@ -87,13 +64,10 @@ impl Program {
             byte_classes: vec![0; 256],
             only_utf8: true,
             is_bytes: false,
-            is_dfa: false,
-            is_reverse: false,
             is_anchored_start: false,
             is_anchored_end: false,
             has_unicode_word_boundary: false,
             prefixes: LiteralSearcher::empty(),
-            dfa_size_limit: 2 * (1<<20),
         }
     }
 
@@ -123,16 +97,10 @@ impl Program {
         }
     }
 
-    /// Returns true if the current configuration demands that an implicit
-    /// `.*?` be prepended to the instruction sequence.
-    pub fn needs_dotstar(&self) -> bool {
-        self.is_dfa && !self.is_reverse && !self.is_anchored_start
-    }
-
     /// Returns true if this program uses Byte instructions instead of
     /// Char/Range instructions.
     pub fn uses_bytes(&self) -> bool {
-        self.is_bytes || self.is_dfa
+        self.is_bytes
     }
 
     /// Returns true if this program exclusively matches valid UTF-8 bytes.
