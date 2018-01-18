@@ -21,7 +21,6 @@ use input::{ByteInput, CharInput};
 use pikevm;
 use prog::Program;
 use re_builder::RegexOptions;
-use re_bytes;
 use re_set;
 use re_trait::{RegularExpression, Slot, Locations, as_slots};
 use re_unicode;
@@ -535,16 +534,6 @@ impl Exec {
     /// Build a RegexSet from this executor.
     pub fn into_regex_set(self) -> re_set::unicode::RegexSet {
         re_set::unicode::RegexSet::from(self)
-    }
-
-    /// Build a Regex from this executor that can match arbitrary bytes.
-    pub fn into_byte_regex(self) -> re_bytes::Regex {
-        re_bytes::Regex::from(self)
-    }
-
-    /// Build a RegexSet from this executor that can match arbitrary bytes.
-    pub fn into_byte_regex_set(self) -> re_set::bytes::RegexSet {
-        re_set::bytes::RegexSet::from(self)
     }
 
     /// The original regular expressions given by the caller that were

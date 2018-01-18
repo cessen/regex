@@ -152,7 +152,6 @@ impl RegexBuilder {
     }
 }
 
-define_builder!(bytes, re_bytes, false);
 define_builder!(unicode, re_unicode, true);
 
 macro_rules! define_set_builder {
@@ -249,5 +248,4 @@ impl RegexSetBuilder {
     }
 }
 
-define_set_builder!(set_bytes, bytes, false);
 define_set_builder!(set_unicode, unicode, true);

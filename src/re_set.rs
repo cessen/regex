@@ -380,32 +380,3 @@ define_set! {
 /// assert!(matches.is_empty());
 /// ```
 }
-
-define_set! {
-    bytes,
-    set_bytes,
-    &[u8],
-    as_bytes_bytes,
-/// ```rust
-/// # use streaming_regex::bytes::RegexSet;
-/// let set = RegexSet::new(&[
-///     r"[a-z]+@[a-z]+\.(com|org|net)",
-///     r"[a-z]+\.(com|org|net)",
-/// ]).unwrap();
-///
-/// // Ask whether any regexes in the set match.
-/// assert!(set.is_match(b"foo@example.com"));
-///
-/// // Identify which regexes in the set match.
-/// let matches: Vec<_> = set.matches(b"foo@example.com").into_iter().collect();
-/// assert_eq!(vec![0, 1], matches);
-///
-/// // Try again, but with text that only matches one of the regexes.
-/// let matches: Vec<_> = set.matches(b"example.com").into_iter().collect();
-/// assert_eq!(vec![1], matches);
-///
-/// // Try again, but with text that doesn't match any regex in the set.
-/// let matches: Vec<_> = set.matches(b"example").into_iter().collect();
-/// assert!(matches.is_empty());
-/// ```
-}

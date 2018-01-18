@@ -45,11 +45,6 @@ pattern = []
 path = "tests/test_default.rs"
 name = "default"
 
-# The same as the default tests, but run on bytes::Regex.
-[[test]]
-path = "tests/test_default_bytes.rs"
-name = "default-bytes"
-
 # Run the test suite on the NFA algorithm over Unicode codepoints.
 [[test]]
 path = "tests/test_nfa.rs"
@@ -59,11 +54,6 @@ name = "nfa"
 [[test]]
 path = "tests/test_nfa_utf8bytes.rs"
 name = "nfa-utf8bytes"
-
-# Run the test suite on the NFA algorithm over arbitrary bytes.
-[[test]]
-path = "tests/test_nfa_bytes.rs"
-name = "nfa-bytes"
 
 [profile.release]
 debug = true
