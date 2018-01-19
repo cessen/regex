@@ -103,6 +103,9 @@ impl<'r> Fsm<'r> {
         cache: &'r mut Cache,
         quit_after_match: bool,
     ) -> Self {
+        cache.clist.resize(prog.len(), prog.captures.len());
+        cache.nlist.resize(prog.len(), prog.captures.len());
+        
         Fsm {
             prog: prog,
             cache: cache,
@@ -122,16 +125,13 @@ impl<'r> Fsm<'r> {
         start: usize,
         input: &I,
     ) -> bool {
-        self.cache.clist.resize(self.prog.len(), self.prog.captures.len());
-        self.cache.nlist.resize(self.prog.len(), self.prog.captures.len());
+        self.cache.clist.set.clear();
+        self.cache.nlist.set.clear();
         self.pos = start;
 
         let mut at = input.at(self.pos);
-
         let mut matched = false;
         let mut all_matched = false;
-        self.cache.clist.set.clear();
-        self.cache.nlist.set.clear();
 'LOOP:  loop {
             if self.cache.clist.set.is_empty() {
                 // Two ways to bail out when our current set of threads is
