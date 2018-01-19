@@ -112,7 +112,7 @@ impl<'r, I: Input> Fsm<'r, I> {
     /// captures accordingly.
     pub fn exec(
         &mut self,
-        clist: &mut Threads,
+        mut clist: &mut Threads,
         nlist: &mut Threads,
         matches: &mut [bool],
         slots: &mut [Slot],
@@ -121,26 +121,8 @@ impl<'r, I: Input> Fsm<'r, I> {
     ) -> bool {
         clist.resize(self.prog.len(), self.prog.captures.len());
         nlist.resize(self.prog.len(), self.prog.captures.len());
-        let at = self.input.at(start);
-        self.exec_(
-            clist,
-            nlist,
-            matches,
-            slots,
-            quit_after_match,
-            at,
-        )
-    }
+        let mut at = self.input.at(start);
 
-    fn exec_(
-        &mut self,
-        mut clist: &mut Threads,
-        nlist: &mut Threads,
-        matches: &mut [bool],
-        slots: &mut [Slot],
-        quit_after_match: bool,
-        mut at: InputAt,
-    ) -> bool {
         let mut matched = false;
         let mut all_matched = false;
         clist.set.clear();
