@@ -457,23 +457,32 @@ impl<'c> ExecNoSync<'c> {
         text: &[u8],
         start: usize,
     ) -> bool {
+        let cache = &mut self.cache.borrow_mut().pikevm;
         if self.ro.nfa.uses_bytes() {
-            pikevm::Fsm::exec(
+            let mut fsm = pikevm::Fsm::new(
                 &self.ro.nfa,
-                self.cache,
+                &mut cache.stack,
+                ByteInput::new(text, self.ro.nfa.only_utf8),
+            );
+            fsm.exec(
+                &mut cache.clist,
+                &mut cache.nlist,
                 matches,
                 slots,
                 quit_after_match,
-                ByteInput::new(text, self.ro.nfa.only_utf8),
                 start)
         } else {
-            pikevm::Fsm::exec(
+            let mut fsm = pikevm::Fsm::new(
                 &self.ro.nfa,
-                self.cache,
+                &mut cache.stack,
+                CharInput::new(text),
+                );
+            fsm.exec(
+                &mut cache.clist,
+                &mut cache.nlist,
                 matches,
                 slots,
                 quit_after_match,
-                CharInput::new(text),
                 start)
         }
     }

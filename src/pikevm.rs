@@ -27,7 +27,6 @@
 
 use std::mem;
 
-use exec::ProgramCache;
 use input::{Input, InputAt};
 use prog::{Program, InstPtr};
 use re_trait::Slot;
@@ -51,15 +50,15 @@ pub struct Fsm<'r, I> {
 #[derive(Clone, Debug)]
 pub struct Cache {
     /// A pair of ordered sets for tracking NFA states.
-    clist: Threads,
-    nlist: Threads,
+    pub clist: Threads,
+    pub nlist: Threads,
     /// An explicit stack used for following epsilon transitions.
-    stack: Vec<FollowEpsilon>,
+    pub stack: Vec<FollowEpsilon>,
 }
 
 /// An ordered set of NFA states and their captures.
 #[derive(Clone, Debug)]
-struct Threads {
+pub struct Threads {
     /// An ordered set of opcodes (each opcode is an NFA state).
     set: SparseSet,
     /// Captures for every NFA state.
@@ -75,7 +74,7 @@ struct Threads {
 /// A representation of an explicit stack frame when following epsilon
 /// transitions. This is used to avoid recursion.
 #[derive(Clone, Debug)]
-enum FollowEpsilon {
+pub enum FollowEpsilon {
     /// Follow transitions at the given instruction pointer.
     IP(InstPtr),
     /// Restore the capture slot with the given position in the input.
@@ -95,31 +94,37 @@ impl Cache {
 }
 
 impl<'r, I: Input> Fsm<'r, I> {
+    pub fn new(
+        prog: &'r Program,
+        stack: &'r mut Vec<FollowEpsilon>,
+        input: I,
+    ) -> Self {
+        Fsm {
+            prog: prog,
+            stack: stack,
+            input: input,
+        }
+    }
+
     /// Execute the NFA matching engine.
     ///
     /// If there's a match, `exec` returns `true` and populates the given
     /// captures accordingly.
     pub fn exec(
-        prog: &'r Program,
-        cache: &ProgramCache,
+        &mut self,
+        clist: &mut Threads,
+        nlist: &mut Threads,
         matches: &mut [bool],
         slots: &mut [Slot],
         quit_after_match: bool,
-        input: I,
         start: usize,
     ) -> bool {
-        let mut cache = cache.borrow_mut();
-        let cache = &mut cache.pikevm;
-        cache.clist.resize(prog.len(), prog.captures.len());
-        cache.nlist.resize(prog.len(), prog.captures.len());
-        let at = input.at(start);
-        Fsm {
-            prog: prog,
-            stack: &mut cache.stack,
-            input: input,
-        }.exec_(
-            &mut cache.clist,
-            &mut cache.nlist,
+        clist.resize(self.prog.len(), self.prog.captures.len());
+        nlist.resize(self.prog.len(), self.prog.captures.len());
+        let at = self.input.at(start);
+        self.exec_(
+            clist,
+            nlist,
             matches,
             slots,
             quit_after_match,
