@@ -39,9 +39,14 @@ pub struct Fsm<'r> {
     ///
     /// The program may be byte oriented or Unicode codepoint oriented.
     prog: &'r Program,
-    /// An explicit stack used for following epsilon transitions. (This is
-    /// borrowed from the cache.)
+    /// Cached allocations.
     cache: &'r mut Cache,
+    /// Current byte position from the start of the input.
+    pos: usize,
+    /// Whether the engine should quit immediately if it finds any match.
+    /// This is used when we only care if there _is_ a match or not, not
+    /// what the match(es) is.
+    quit_after_match: bool,
 }
 
 /// A cached allocation that can be reused on each execution.
@@ -96,10 +101,13 @@ impl<'r> Fsm<'r> {
     pub fn new(
         prog: &'r Program,
         cache: &'r mut Cache,
+        quit_after_match: bool,
     ) -> Self {
         Fsm {
             prog: prog,
             cache: cache,
+            pos: 0,
+            quit_after_match: quit_after_match,
         }
     }
 
@@ -111,13 +119,14 @@ impl<'r> Fsm<'r> {
         &mut self,
         matches: &mut [bool],
         slots: &mut [Slot],
-        quit_after_match: bool,
         start: usize,
         input: &I,
     ) -> bool {
         self.cache.clist.resize(self.prog.len(), self.prog.captures.len());
         self.cache.nlist.resize(self.prog.len(), self.prog.captures.len());
-        let mut at = input.at(start);
+        self.pos = start;
+
+        let mut at = input.at(self.pos);
 
         let mut matched = false;
         let mut all_matched = false;
@@ -195,7 +204,7 @@ impl<'r> Fsm<'r> {
                 if step_result {
                     matched = true;
                     all_matched = all_matched || matches.iter().all(|&b| b);
-                    if quit_after_match {
+                    if self.quit_after_match {
                         // If we only care if a match occurs (not its
                         // position), then we can quit right now.
                         break 'LOOP;

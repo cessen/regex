@@ -462,11 +462,11 @@ impl<'c> ExecNoSync<'c> {
             let mut fsm = pikevm::Fsm::new(
                 &self.ro.nfa,
                 cache,
+                quit_after_match,
             );
             fsm.exec(
                 matches,
                 slots,
-                quit_after_match,
                 start,
                 &ByteInput::new(text, self.ro.nfa.only_utf8),
             )
@@ -474,11 +474,11 @@ impl<'c> ExecNoSync<'c> {
             let mut fsm = pikevm::Fsm::new(
                 &self.ro.nfa,
                 cache,
+                quit_after_match,
                 );
             fsm.exec(
                 matches,
                 slots,
-                quit_after_match,
                 start,
                 &CharInput::new(text),
             )
