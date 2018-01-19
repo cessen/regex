@@ -41,7 +41,7 @@ pub struct Fsm<'r, I> {
     prog: &'r Program,
     /// An explicit stack used for following epsilon transitions. (This is
     /// borrowed from the cache.)
-    stack: &'r mut Vec<FollowEpsilon>,
+    cache: &'r mut Cache,
     /// The input to search.
     input: I,
 }
@@ -50,15 +50,15 @@ pub struct Fsm<'r, I> {
 #[derive(Clone, Debug)]
 pub struct Cache {
     /// A pair of ordered sets for tracking NFA states.
-    pub clist: Threads,
-    pub nlist: Threads,
+    clist: Threads,
+    nlist: Threads,
     /// An explicit stack used for following epsilon transitions.
-    pub stack: Vec<FollowEpsilon>,
+    stack: Vec<FollowEpsilon>,
 }
 
 /// An ordered set of NFA states and their captures.
 #[derive(Clone, Debug)]
-pub struct Threads {
+struct Threads {
     /// An ordered set of opcodes (each opcode is an NFA state).
     set: SparseSet,
     /// Captures for every NFA state.
@@ -74,7 +74,7 @@ pub struct Threads {
 /// A representation of an explicit stack frame when following epsilon
 /// transitions. This is used to avoid recursion.
 #[derive(Clone, Debug)]
-pub enum FollowEpsilon {
+enum FollowEpsilon {
     /// Follow transitions at the given instruction pointer.
     IP(InstPtr),
     /// Restore the capture slot with the given position in the input.
@@ -96,12 +96,12 @@ impl Cache {
 impl<'r, I: Input> Fsm<'r, I> {
     pub fn new(
         prog: &'r Program,
-        stack: &'r mut Vec<FollowEpsilon>,
+        cache: &'r mut Cache,
         input: I,
     ) -> Self {
         Fsm {
             prog: prog,
-            stack: stack,
+            cache: cache,
             input: input,
         }
     }
@@ -112,23 +112,21 @@ impl<'r, I: Input> Fsm<'r, I> {
     /// captures accordingly.
     pub fn exec(
         &mut self,
-        mut clist: &mut Threads,
-        nlist: &mut Threads,
         matches: &mut [bool],
         slots: &mut [Slot],
         quit_after_match: bool,
         start: usize,
     ) -> bool {
-        clist.resize(self.prog.len(), self.prog.captures.len());
-        nlist.resize(self.prog.len(), self.prog.captures.len());
+        self.cache.clist.resize(self.prog.len(), self.prog.captures.len());
+        self.cache.nlist.resize(self.prog.len(), self.prog.captures.len());
         let mut at = self.input.at(start);
 
         let mut matched = false;
         let mut all_matched = false;
-        clist.set.clear();
-        nlist.set.clear();
+        self.cache.clist.set.clear();
+        self.cache.nlist.set.clear();
 'LOOP:  loop {
-            if clist.set.is_empty() {
+            if self.cache.clist.set.is_empty() {
                 // Two ways to bail out when our current set of threads is
                 // empty.
                 //
@@ -149,17 +147,17 @@ impl<'r, I: Input> Fsm<'r, I> {
             // This simulates a preceding '.*?' for every regex by adding
             // a state starting at the current position in the input for the
             // beginning of the program only if we don't already have a match.
-            if clist.set.is_empty()
+            if self.cache.clist.set.is_empty()
                 || (!self.prog.is_anchored_start && !all_matched) {
-                self.add(&mut clist, slots, 0, at);
+                self.add(Some(slots), 0, 0, at);
             }
             // The previous call to "add" actually inspects the position just
             // before the current character. For stepping through the machine,
             // we can to look at the current character, so we advance the
             // input.
             let at_next = self.input.at(at.next_pos());
-            for i in 0..clist.set.len() {
-                let ip = clist.set[i];
+            for i in 0..self.cache.clist.set.len() {
+                let ip = self.cache.clist.set[i];
 
                 // Do step
                 use prog::Inst::*;
@@ -168,27 +166,27 @@ impl<'r, I: Input> Fsm<'r, I> {
                         if match_slot < matches.len() {
                             matches[match_slot] = true;
                         }
-                        for (slot, val) in slots.iter_mut().zip(clist.caps(ip).iter()) {
+                        for (slot, val) in slots.iter_mut().zip(self.cache.clist.caps(ip).iter()) {
                             *slot = *val;
                         }
                         true
                     }
                     Char(ref inst) => {
                         if inst.c == at.char() {
-                            self.add(nlist, clist.caps(ip), inst.goto, at_next);
+                            self.add(None, ip, inst.goto, at_next);
                         }
                         false
                     }
                     Ranges(ref inst) => {
                         if inst.matches(at.char()) {
-                            self.add(nlist, clist.caps(ip), inst.goto, at_next);
+                            self.add(None, ip, inst.goto, at_next);
                         }
                         false
                     }
                     Bytes(ref inst) => {
                         if let Some(b) = at.byte() {
                             if inst.matches(b) {
-                                self.add(nlist, clist.caps(ip), inst.goto, at_next);
+                                self.add(None, ip, inst.goto, at_next);
                             }
                         }
                         false
@@ -221,8 +219,8 @@ impl<'r, I: Input> Fsm<'r, I> {
                 break;
             }
             at = at_next;
-            mem::swap(clist, nlist);
-            nlist.set.clear();
+            mem::swap(&mut self.cache.clist, &mut self.cache.nlist);
+            self.cache.nlist.set.clear();
         }
         matched
     }
@@ -231,13 +229,18 @@ impl<'r, I: Input> Fsm<'r, I> {
     /// starting at and including ip.
     fn add(
         &mut self,
-        nlist: &mut Threads,
-        thread_caps: &mut [Option<usize>],
+        thread_caps: Option<&mut [Option<usize>]>,
+        ip_prev: usize,
         ip: usize,
         at: InputAt,
     ) {
-        self.stack.push(FollowEpsilon::IP(ip));
-        while let Some(frame) = self.stack.pop() {
+        let (nlist, thread_caps) = if let Some(tc) = thread_caps {
+            (&mut self.cache.clist, tc)
+        } else {
+            (&mut self.cache.nlist, self.cache.clist.caps(ip_prev))
+        };
+        self.cache.stack.push(FollowEpsilon::IP(ip));
+        while let Some(frame) = self.cache.stack.pop() {
             match frame {
                 FollowEpsilon::IP(mut ip) => {
                     // Instead of pushing and popping to the stack, we mutate
@@ -259,7 +262,7 @@ impl<'r, I: Input> Fsm<'r, I> {
                             }
                             Save(ref inst) => {
                                 if inst.slot < thread_caps.len() {
-                                    self.stack.push(FollowEpsilon::Capture {
+                                    self.cache.stack.push(FollowEpsilon::Capture {
                                         slot: inst.slot,
                                         pos: thread_caps[inst.slot],
                                     });
@@ -268,7 +271,7 @@ impl<'r, I: Input> Fsm<'r, I> {
                                 ip = inst.goto;
                             }
                             Split(ref inst) => {
-                                self.stack.push(FollowEpsilon::IP(inst.goto2));
+                                self.cache.stack.push(FollowEpsilon::IP(inst.goto2));
                                 ip = inst.goto1;
                             }
                             Match(_) | Char(_) | Ranges(_) | Bytes(_) => {
