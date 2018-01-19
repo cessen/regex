@@ -462,24 +462,26 @@ impl<'c> ExecNoSync<'c> {
             let mut fsm = pikevm::Fsm::new(
                 &self.ro.nfa,
                 cache,
-                ByteInput::new(text, self.ro.nfa.only_utf8),
             );
             fsm.exec(
                 matches,
                 slots,
                 quit_after_match,
-                start)
+                start,
+                &ByteInput::new(text, self.ro.nfa.only_utf8),
+            )
         } else {
             let mut fsm = pikevm::Fsm::new(
                 &self.ro.nfa,
                 cache,
-                CharInput::new(text),
                 );
             fsm.exec(
                 matches,
                 slots,
                 quit_after_match,
-                start)
+                start,
+                &CharInput::new(text),
+            )
         }
     }
 

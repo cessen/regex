@@ -34,7 +34,7 @@ use sparse::SparseSet;
 
 /// An NFA simulation matching engine.
 #[derive(Debug)]
-pub struct Fsm<'r, I> {
+pub struct Fsm<'r> {
     /// The sequence of opcodes (among other things) that is actually executed.
     ///
     /// The program may be byte oriented or Unicode codepoint oriented.
@@ -42,8 +42,6 @@ pub struct Fsm<'r, I> {
     /// An explicit stack used for following epsilon transitions. (This is
     /// borrowed from the cache.)
     cache: &'r mut Cache,
-    /// The input to search.
-    input: I,
 }
 
 /// A cached allocation that can be reused on each execution.
@@ -93,16 +91,15 @@ impl Cache {
     }
 }
 
-impl<'r, I: Input> Fsm<'r, I> {
+impl<'r> Fsm<'r> {
+    /// Creates a new instance of the PikeVM engine.
     pub fn new(
         prog: &'r Program,
         cache: &'r mut Cache,
-        input: I,
     ) -> Self {
         Fsm {
             prog: prog,
             cache: cache,
-            input: input,
         }
     }
 
@@ -110,16 +107,17 @@ impl<'r, I: Input> Fsm<'r, I> {
     ///
     /// If there's a match, `exec` returns `true` and populates the given
     /// captures accordingly.
-    pub fn exec(
+    pub fn exec<I: Input>(
         &mut self,
         matches: &mut [bool],
         slots: &mut [Slot],
         quit_after_match: bool,
         start: usize,
+        input: &I,
     ) -> bool {
         self.cache.clist.resize(self.prog.len(), self.prog.captures.len());
         self.cache.nlist.resize(self.prog.len(), self.prog.captures.len());
-        let mut at = self.input.at(start);
+        let mut at = input.at(start);
 
         let mut matched = false;
         let mut all_matched = false;
@@ -149,13 +147,13 @@ impl<'r, I: Input> Fsm<'r, I> {
             // beginning of the program only if we don't already have a match.
             if self.cache.clist.set.is_empty()
                 || (!self.prog.is_anchored_start && !all_matched) {
-                self.add(Some(slots), 0, 0, at);
+                self.add(Some(slots), 0, 0, at, input);
             }
             // The previous call to "add" actually inspects the position just
             // before the current character. For stepping through the machine,
             // we can to look at the current character, so we advance the
             // input.
-            let at_next = self.input.at(at.next_pos());
+            let at_next = input.at(at.next_pos());
             for i in 0..self.cache.clist.set.len() {
                 let ip = self.cache.clist.set[i];
 
@@ -173,20 +171,20 @@ impl<'r, I: Input> Fsm<'r, I> {
                     }
                     Char(ref inst) => {
                         if inst.c == at.char() {
-                            self.add(None, ip, inst.goto, at_next);
+                            self.add(None, ip, inst.goto, at_next, input);
                         }
                         false
                     }
                     Ranges(ref inst) => {
                         if inst.matches(at.char()) {
-                            self.add(None, ip, inst.goto, at_next);
+                            self.add(None, ip, inst.goto, at_next, input);
                         }
                         false
                     }
                     Bytes(ref inst) => {
                         if let Some(b) = at.byte() {
                             if inst.matches(b) {
-                                self.add(None, ip, inst.goto, at_next);
+                                self.add(None, ip, inst.goto, at_next, input);
                             }
                         }
                         false
@@ -227,12 +225,13 @@ impl<'r, I: Input> Fsm<'r, I> {
 
     /// Follows epsilon transitions and adds them for processing to nlist,
     /// starting at and including ip.
-    fn add(
+    fn add<I: Input>(
         &mut self,
         thread_caps: Option<&mut [Option<usize>]>,
         ip_prev: usize,
         ip: usize,
         at: InputAt,
+        input: &I,
     ) {
         let (nlist, thread_caps) = if let Some(tc) = thread_caps {
             (&mut self.cache.clist, tc)
@@ -256,7 +255,7 @@ impl<'r, I: Input> Fsm<'r, I> {
                         nlist.set.insert(ip);
                         match self.prog[ip] {
                             EmptyLook(ref inst) => {
-                                if self.input.is_empty_match(at, inst) {
+                                if input.is_empty_match(at, inst) {
                                     ip = inst.goto;
                                 }
                             }
