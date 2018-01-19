@@ -130,7 +130,7 @@ impl<'r, I: Input> Fsm<'r, I> {
     fn exec_(
         &mut self,
         mut clist: &mut Threads,
-        mut nlist: &mut Threads,
+        nlist: &mut Threads,
         matches: &mut [bool],
         slots: &mut [Slot],
         quit_after_match: bool,
@@ -173,15 +173,43 @@ impl<'r, I: Input> Fsm<'r, I> {
             let at_next = self.input.at(at.next_pos());
             for i in 0..clist.set.len() {
                 let ip = clist.set[i];
-                if self.step(
-                    &mut nlist,
-                    matches,
-                    slots,
-                    clist.caps(ip),
-                    ip,
-                    at,
-                    at_next,
-                ) {
+
+                // Do step
+                use prog::Inst::*;
+                let step_result = match self.prog[ip] {
+                    Match(match_slot) => {
+                        if match_slot < matches.len() {
+                            matches[match_slot] = true;
+                        }
+                        for (slot, val) in slots.iter_mut().zip(clist.caps(ip).iter()) {
+                            *slot = *val;
+                        }
+                        true
+                    }
+                    Char(ref inst) => {
+                        if inst.c == at.char() {
+                            self.add(nlist, clist.caps(ip), inst.goto, at_next);
+                        }
+                        false
+                    }
+                    Ranges(ref inst) => {
+                        if inst.matches(at.char()) {
+                            self.add(nlist, clist.caps(ip), inst.goto, at_next);
+                        }
+                        false
+                    }
+                    Bytes(ref inst) => {
+                        if let Some(b) = at.byte() {
+                            if inst.matches(b) {
+                                self.add(nlist, clist.caps(ip), inst.goto, at_next);
+                            }
+                        }
+                        false
+                    }
+                    EmptyLook(_) | Save(_) | Split(_) => false,
+                };
+
+                if step_result {
                     matched = true;
                     all_matched = all_matched || matches.iter().all(|&b| b);
                     if quit_after_match {
@@ -210,63 +238,6 @@ impl<'r, I: Input> Fsm<'r, I> {
             nlist.set.clear();
         }
         matched
-    }
-
-    /// Step through the input, one token (byte or codepoint) at a time.
-    ///
-    /// nlist is the set of states that will be processed on the next token
-    /// in the input.
-    ///
-    /// caps is the set of captures passed by the caller of the NFA. They are
-    /// written to only when a match state is visited.
-    ///
-    /// thread_caps is the set of captures set for the current NFA state, ip.
-    ///
-    /// at and at_next are the current and next positions in the input. at or
-    /// at_next may be EOF.
-    fn step(
-        &mut self,
-        nlist: &mut Threads,
-        matches: &mut [bool],
-        slots: &mut [Slot],
-        thread_caps: &mut [Option<usize>],
-        ip: usize,
-        at: InputAt,
-        at_next: InputAt,
-    ) -> bool {
-        use prog::Inst::*;
-        match self.prog[ip] {
-            Match(match_slot) => {
-                if match_slot < matches.len() {
-                    matches[match_slot] = true;
-                }
-                for (slot, val) in slots.iter_mut().zip(thread_caps.iter()) {
-                    *slot = *val;
-                }
-                true
-            }
-            Char(ref inst) => {
-                if inst.c == at.char() {
-                    self.add(nlist, thread_caps, inst.goto, at_next);
-                }
-                false
-            }
-            Ranges(ref inst) => {
-                if inst.matches(at.char()) {
-                    self.add(nlist, thread_caps, inst.goto, at_next);
-                }
-                false
-            }
-            Bytes(ref inst) => {
-                if let Some(b) = at.byte() {
-                    if inst.matches(b) {
-                        self.add(nlist, thread_caps, inst.goto, at_next);
-                    }
-                }
-                false
-            }
-            EmptyLook(_) | Save(_) | Split(_) => false,
-        }
     }
 
     /// Follows epsilon transitions and adds them for processing to nlist,
