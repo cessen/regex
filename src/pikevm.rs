@@ -39,8 +39,6 @@ pub struct Fsm<'r> {
     ///
     /// The program may be byte oriented or Unicode codepoint oriented.
     prog: &'r Program,
-    /// Cached allocations.
-    cache: &'r mut Cache,
     /// Whether the engine should quit immediately if it finds any match.
     /// This is used when we only care if there _is_ a match or not, not
     /// what the match(es) is.
@@ -90,10 +88,14 @@ enum FollowEpsilon {
 impl Cache {
     /// Create a new allocation used by the NFA machine to record execution
     /// and captures.
-    pub fn new(_prog: &Program) -> Self {
+    pub fn new(prog: &Program) -> Self {
+        let mut clist = Threads::new();
+        let mut nlist = Threads::new();
+        clist.resize(prog.len(), prog.captures.len());
+        nlist.resize(prog.len(), prog.captures.len());
         Cache {
-            clist: Threads::new(),
-            nlist: Threads::new(),
+            clist: clist,
+            nlist: nlist,
             stack: vec![],
             char_buffer: [0; 4],
             char_buffer_len: 0,
@@ -106,15 +108,10 @@ impl<'r> Fsm<'r> {
     /// Creates a new instance of the PikeVM engine.
     pub fn new(
         prog: &'r Program,
-        cache: &'r mut Cache,
         quit_after_match: bool,
     ) -> Self {
-        cache.clist.resize(prog.len(), prog.captures.len());
-        cache.nlist.resize(prog.len(), prog.captures.len());
-        
         Fsm {
             prog: prog,
-            cache: cache,
             quit_after_match: quit_after_match,
         }
     }
@@ -125,20 +122,21 @@ impl<'r> Fsm<'r> {
     /// captures accordingly.
     pub fn exec<I: Input>(
         &mut self,
+        cache: &'r mut Cache,
         matches: &mut [bool],
         slots: &mut [Slot],
         start: usize,
         input: &I,
     ) -> bool {
-        self.cache.clist.set.clear();
-        self.cache.nlist.set.clear();
-        self.cache.pos = start;
+        cache.clist.set.clear();
+        cache.nlist.set.clear();
+        cache.pos = start;
 
-        let mut at = input.at(self.cache.pos);
+        let mut at = input.at(cache.pos);
         let mut matched = false;
         let mut all_matched = false;
 'LOOP:  loop {
-            if self.cache.clist.set.is_empty() {
+            if cache.clist.set.is_empty() {
                 // Two ways to bail out when our current set of threads is
                 // empty.
                 //
@@ -159,17 +157,17 @@ impl<'r> Fsm<'r> {
             // This simulates a preceding '.*?' for every regex by adding
             // a state starting at the current position in the input for the
             // beginning of the program only if we don't already have a match.
-            if self.cache.clist.set.is_empty()
+            if cache.clist.set.is_empty()
                 || (!self.prog.is_anchored_start && !all_matched) {
-                self.add(Some(slots), 0, 0, at, input);
+                self.add(&mut cache.stack, &mut cache.clist, slots, 0, at, input);
             }
             // The previous call to "add" actually inspects the position just
             // before the current character. For stepping through the machine,
             // we can to look at the current character, so we advance the
             // input.
             let at_next = input.at(at.next_pos());
-            for i in 0..self.cache.clist.set.len() {
-                let ip = self.cache.clist.set[i];
+            for i in 0..cache.clist.set.len() {
+                let ip = cache.clist.set[i];
 
                 // Do step
                 use prog::Inst::*;
@@ -178,27 +176,27 @@ impl<'r> Fsm<'r> {
                         if match_slot < matches.len() {
                             matches[match_slot] = true;
                         }
-                        for (slot, val) in slots.iter_mut().zip(self.cache.clist.caps(ip).iter()) {
+                        for (slot, val) in slots.iter_mut().zip(cache.clist.caps(ip).iter()) {
                             *slot = *val;
                         }
                         true
                     }
                     Char(ref inst) => {
                         if inst.c == at.char() {
-                            self.add(None, ip, inst.goto, at_next, input);
+                            self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
                         }
                         false
                     }
                     Ranges(ref inst) => {
                         if inst.matches(at.char()) {
-                            self.add(None, ip, inst.goto, at_next, input);
+                            self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
                         }
                         false
                     }
                     Bytes(ref inst) => {
                         if let Some(b) = at.byte() {
                             if inst.matches(b) {
-                                self.add(None, ip, inst.goto, at_next, input);
+                                self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
                             }
                         }
                         false
@@ -231,8 +229,8 @@ impl<'r> Fsm<'r> {
                 break;
             }
             at = at_next;
-            mem::swap(&mut self.cache.clist, &mut self.cache.nlist);
-            self.cache.nlist.set.clear();
+            mem::swap(&mut cache.clist, &mut cache.nlist);
+            cache.nlist.set.clear();
         }
         matched
     }
@@ -241,19 +239,15 @@ impl<'r> Fsm<'r> {
     /// starting at and including ip.
     fn add<I: Input>(
         &mut self,
-        thread_caps: Option<&mut [Option<usize>]>,
-        ip_prev: usize,
+        stack: &mut Vec<FollowEpsilon>,
+        nlist: &mut Threads,
+        thread_caps: &mut [Option<usize>],
         ip: usize,
         at: InputAt,
         input: &I,
     ) {
-        let (nlist, thread_caps) = if let Some(tc) = thread_caps {
-            (&mut self.cache.clist, tc)
-        } else {
-            (&mut self.cache.nlist, self.cache.clist.caps(ip_prev))
-        };
-        self.cache.stack.push(FollowEpsilon::IP(ip));
-        while let Some(frame) = self.cache.stack.pop() {
+        stack.push(FollowEpsilon::IP(ip));
+        while let Some(frame) = stack.pop() {
             match frame {
                 FollowEpsilon::IP(mut ip) => {
                     // Instead of pushing and popping to the stack, we mutate
@@ -275,7 +269,7 @@ impl<'r> Fsm<'r> {
                             }
                             Save(ref inst) => {
                                 if inst.slot < thread_caps.len() {
-                                    self.cache.stack.push(FollowEpsilon::Capture {
+                                    stack.push(FollowEpsilon::Capture {
                                         slot: inst.slot,
                                         pos: thread_caps[inst.slot],
                                     });
@@ -284,7 +278,7 @@ impl<'r> Fsm<'r> {
                                 ip = inst.goto;
                             }
                             Split(ref inst) => {
-                                self.cache.stack.push(FollowEpsilon::IP(inst.goto2));
+                                stack.push(FollowEpsilon::IP(inst.goto2));
                                 ip = inst.goto1;
                             }
                             Match(_) | Char(_) | Ranges(_) | Bytes(_) => {

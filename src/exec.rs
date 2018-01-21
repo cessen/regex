@@ -461,10 +461,10 @@ impl<'c> ExecNoSync<'c> {
         if self.ro.nfa.uses_bytes() {
             let mut fsm = pikevm::Fsm::new(
                 &self.ro.nfa,
-                cache,
                 quit_after_match,
             );
             fsm.exec(
+                cache,
                 matches,
                 slots,
                 start,
@@ -473,10 +473,10 @@ impl<'c> ExecNoSync<'c> {
         } else {
             let mut fsm = pikevm::Fsm::new(
                 &self.ro.nfa,
-                cache,
                 quit_after_match,
                 );
             fsm.exec(
+                cache,
                 matches,
                 slots,
                 start,
