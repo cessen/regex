@@ -41,8 +41,6 @@ pub struct Fsm<'r> {
     prog: &'r Program,
     /// Cached allocations.
     cache: &'r mut Cache,
-    /// Current byte position from the start of the input.
-    pos: usize,
     /// Whether the engine should quit immediately if it finds any match.
     /// This is used when we only care if there _is_ a match or not, not
     /// what the match(es) is.
@@ -60,6 +58,8 @@ pub struct Cache {
     /// Input buffer for finding unicode code points.
     char_buffer: [u8; 4],
     char_buffer_len: usize,
+    /// The current byte position in the total input
+    pos: usize,
 }
 
 /// An ordered set of NFA states and their captures.
@@ -97,6 +97,7 @@ impl Cache {
             stack: vec![],
             char_buffer: [0; 4],
             char_buffer_len: 0,
+            pos: 0,
         }
     }
 }
@@ -114,7 +115,6 @@ impl<'r> Fsm<'r> {
         Fsm {
             prog: prog,
             cache: cache,
-            pos: 0,
             quit_after_match: quit_after_match,
         }
     }
@@ -132,9 +132,9 @@ impl<'r> Fsm<'r> {
     ) -> bool {
         self.cache.clist.set.clear();
         self.cache.nlist.set.clear();
-        self.pos = start;
+        self.cache.pos = start;
 
-        let mut at = input.at(self.pos);
+        let mut at = input.at(self.cache.pos);
         let mut matched = false;
         let mut all_matched = false;
 'LOOP:  loop {
