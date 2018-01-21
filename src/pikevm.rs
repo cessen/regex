@@ -57,6 +57,9 @@ pub struct Cache {
     nlist: Threads,
     /// An explicit stack used for following epsilon transitions.
     stack: Vec<FollowEpsilon>,
+    /// Input buffer for finding unicode code points.
+    char_buffer: [u8; 4],
+    char_buffer_len: usize,
 }
 
 /// An ordered set of NFA states and their captures.
@@ -92,6 +95,8 @@ impl Cache {
             clist: Threads::new(),
             nlist: Threads::new(),
             stack: vec![],
+            char_buffer: [0; 4],
+            char_buffer_len: 0,
         }
     }
 }
