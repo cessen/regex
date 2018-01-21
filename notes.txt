@@ -1,0 +1,11 @@
+exec.rs:
+	- Exec / ExecNoSync: the types the implement a regex with maintained state during
+	  an execution.  They allow input to be fed incrementally, consuming only as much
+	  of the input as is needed for the next match.  We want to change these to take
+	  sequential chunks of bytes at a time, rather than the same chunk with a `start`
+	  offset over and over.
+
+re_trait.rs:
+	- RegularExpression: trait that describes the incremental functionality of
+	  Exec / ExecNoSync.  This needs to be changed to work with sequential chunks
+	  of bytes as well.
