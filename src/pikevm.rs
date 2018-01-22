@@ -105,6 +105,11 @@ impl Cache {
             pos: 0,
         }
     }
+
+    pub fn prep_for_next_match(&mut self) {
+        self.clist.set.clear();
+        self.nlist.set.clear();
+    }
 }
 
 impl<'r> Fsm<'r> {
@@ -131,14 +136,13 @@ impl<'r> Fsm<'r> {
         start: usize,
         input: &I,
     ) {
-        cache.clist.set.clear();
-        cache.nlist.set.clear();
+        cache.prep_for_next_match();
         cache.pos = start;
 
         let mut at = input.at(cache.pos);
         cache.all_matched = false;
 'LOOP:  loop {
-            let iter_done = self.next(
+            let stop = self.next(
                 cache,
                 matches,
                 slots,
@@ -146,12 +150,10 @@ impl<'r> Fsm<'r> {
                 input,
             );
 
-            if iter_done || at.is_end() {
+            if stop || at.is_end() {
                 break;
             }
             at = input.at(at.next_pos());
-            mem::swap(&mut cache.clist, &mut cache.nlist);
-            cache.nlist.set.clear();
         }
     }
 
@@ -163,7 +165,7 @@ impl<'r> Fsm<'r> {
         at: InputAt,
         input: &I,
     ) -> bool {
-        let mut iter_done = false;
+        let mut stop = false;
 
         if cache.clist.set.is_empty() {
             // Two ways to bail out when our current set of threads is
@@ -243,7 +245,7 @@ impl<'r> Fsm<'r> {
             // still need to check threads in the next set to support
             // things like greedy matching.
             if matched && (self.quit_after_match || self.prog.matches.len() == 1) {
-                iter_done = self.quit_after_match;
+                stop = self.quit_after_match;
                 break;
             }
         }
@@ -252,7 +254,12 @@ impl<'r> Fsm<'r> {
             cache.all_matched = cache.all_matched || matches.iter().all(|&b| b);
         }
 
-        return iter_done;
+        if !stop {
+            mem::swap(&mut cache.clist, &mut cache.nlist);
+            cache.nlist.set.clear();
+        }
+
+        return stop;
     }
 
     /// Follows epsilon transitions and adds them for processing to nlist,
