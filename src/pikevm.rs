@@ -122,7 +122,7 @@ impl<'r> Fsm<'r> {
     /// captures accordingly.
     pub fn exec<I: Input>(
         &mut self,
-        cache: &'r mut Cache,
+        cache: &mut Cache,
         matches: &mut [bool],
         slots: &mut [Slot],
         start: usize,
@@ -169,40 +169,15 @@ impl<'r> Fsm<'r> {
             for i in 0..cache.clist.set.len() {
                 let ip = cache.clist.set[i];
 
-                // Do step
-                use prog::Inst::*;
-                let step_result = match self.prog[ip] {
-                    Match(match_slot) => {
-                        if match_slot < matches.len() {
-                            matches[match_slot] = true;
-                        }
-                        for (slot, val) in slots.iter_mut().zip(cache.clist.caps(ip).iter()) {
-                            *slot = *val;
-                        }
-                        true
-                    }
-                    Char(ref inst) => {
-                        if inst.c == at.char() {
-                            self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
-                        }
-                        false
-                    }
-                    Ranges(ref inst) => {
-                        if inst.matches(at.char()) {
-                            self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
-                        }
-                        false
-                    }
-                    Bytes(ref inst) => {
-                        if let Some(b) = at.byte() {
-                            if inst.matches(b) {
-                                self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
-                            }
-                        }
-                        false
-                    }
-                    EmptyLook(_) | Save(_) | Split(_) => false,
-                };
+                let step_result = self.next(
+                    cache,
+                    matches,
+                    slots,
+                    ip,
+                    at,
+                    at_next,
+                    input,
+                );
 
                 if step_result {
                     matched = true;
@@ -233,6 +208,54 @@ impl<'r> Fsm<'r> {
             cache.nlist.set.clear();
         }
         matched
+    }
+
+    pub fn next<I: Input>(
+        &mut self,
+        cache: &mut Cache,
+        matches: &mut [bool],
+        slots: &mut [Slot],
+        ip: usize,
+        at: InputAt,
+        at_next: InputAt,
+        input: &I,
+    ) -> bool {
+        // Do step
+        use prog::Inst::*;
+        let step_result = match self.prog[ip] {
+            Match(match_slot) => {
+                if match_slot < matches.len() {
+                    matches[match_slot] = true;
+                }
+                for (slot, val) in slots.iter_mut().zip(cache.clist.caps(ip).iter()) {
+                    *slot = *val;
+                }
+                true
+            }
+            Char(ref inst) => {
+                if inst.c == at.char() {
+                    self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
+                }
+                false
+            }
+            Ranges(ref inst) => {
+                if inst.matches(at.char()) {
+                    self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
+                }
+                false
+            }
+            Bytes(ref inst) => {
+                if let Some(b) = at.byte() {
+                    if inst.matches(b) {
+                        self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
+                    }
+                }
+                false
+            }
+            EmptyLook(_) | Save(_) | Split(_) => false,
+        };
+
+        return step_result;
     }
 
     /// Follows epsilon transitions and adds them for processing to nlist,
