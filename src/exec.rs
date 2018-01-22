@@ -469,7 +469,7 @@ impl<'c> ExecNoSync<'c> {
                 slots,
                 start,
                 &ByteInput::new(text, self.ro.nfa.only_utf8),
-            )
+            );
         } else {
             let mut fsm = pikevm::Fsm::new(
                 &self.ro.nfa,
@@ -481,8 +481,10 @@ impl<'c> ExecNoSync<'c> {
                 slots,
                 start,
                 &CharInput::new(text),
-            )
+            );
         }
+
+        matches.iter().any(|b| *b)
     }
 
     /// Finds which regular expressions match the given text.

@@ -130,24 +130,21 @@ impl<'r> Fsm<'r> {
         slots: &mut [Slot],
         start: usize,
         input: &I,
-    ) -> bool {
+    ) {
         cache.clist.set.clear();
         cache.nlist.set.clear();
         cache.pos = start;
 
         let mut at = input.at(cache.pos);
-        let mut matched = false;
         cache.all_matched = false;
 'LOOP:  loop {
-            let (iter_done, found_match) = self.next(
+            let iter_done = self.next(
                 cache,
                 matches,
                 slots,
                 at,
                 input,
             );
-
-            matched |= found_match;
 
             if iter_done || at.is_end() {
                 break;
@@ -156,7 +153,6 @@ impl<'r> Fsm<'r> {
             mem::swap(&mut cache.clist, &mut cache.nlist);
             cache.nlist.set.clear();
         }
-        matched
     }
 
     pub fn next<I: Input>(
@@ -166,9 +162,8 @@ impl<'r> Fsm<'r> {
         slots: &mut [Slot],
         at: InputAt,
         input: &I,
-    ) -> (bool, bool) {
+    ) -> bool {
         let mut iter_done = false;
-        let mut matched = false;
 
         if cache.clist.set.is_empty() {
             // Two ways to bail out when our current set of threads is
@@ -182,7 +177,7 @@ impl<'r> Fsm<'r> {
             //    soon as the last thread dies.
             if cache.all_matched
                 || (!at.is_start() && self.prog.is_anchored_start) {
-                return (true, false);
+                return true;
             }
         }
 
@@ -200,14 +195,17 @@ impl<'r> Fsm<'r> {
         let at_next = input.at(at.next_pos());
 
         // Loop through the threads and run them against this step of input.
+        let mut matched = false;
         for i in 0..cache.clist.set.len() {
             let ip = cache.clist.set[i];
 
             use prog::Inst::*;
-            let thread_matched = match self.prog[ip] {
+            matched |= match self.prog[ip] {
                 Match(match_slot) => {
                     if match_slot < matches.len() {
                         matches[match_slot] = true;
+                    } else {
+                        matches[0] = true;
                     }
                     for (slot, val) in slots.iter_mut().zip(cache.clist.caps(ip).iter()) {
                         *slot = *val;
@@ -237,19 +235,16 @@ impl<'r> Fsm<'r> {
                 EmptyLook(_) | Save(_) | Split(_) => false,
             };
 
-            if thread_matched {
-                matched = true;
-                // If we only care if a match occurs (not its
-                // position), then we can quit right now.
-                // We also don't need to check the rest of the threads
-                // in this set if there's only one match possible because
-                // we've matched something ("leftmost-first"). However, we
-                // still need to check threads in the next set to support
-                // things like greedy matching.
-                if self.quit_after_match || self.prog.matches.len() == 1 {
-                    iter_done = self.quit_after_match;
-                    break;
-                }
+            // If we only care if a match occurs (not its
+            // position), then we can quit right now.
+            // We also don't need to check the rest of the threads
+            // in this set if there's only one match possible because
+            // we've matched something ("leftmost-first"). However, we
+            // still need to check threads in the next set to support
+            // things like greedy matching.
+            if matched && (self.quit_after_match || self.prog.matches.len() == 1) {
+                iter_done = self.quit_after_match;
+                break;
             }
         }
 
@@ -257,7 +252,7 @@ impl<'r> Fsm<'r> {
             cache.all_matched = cache.all_matched || matches.iter().all(|&b| b);
         }
 
-        return (iter_done, matched);
+        return iter_done;
     }
 
     /// Follows epsilon transitions and adds them for processing to nlist,
