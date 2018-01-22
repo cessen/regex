@@ -109,6 +109,7 @@ impl Cache {
     pub fn prep_for_next_match(&mut self) {
         self.clist.set.clear();
         self.nlist.set.clear();
+        self.all_matched = false;
     }
 }
 
@@ -124,39 +125,17 @@ impl<'r> Fsm<'r> {
         }
     }
 
-    /// Execute the NFA matching engine.
+    /// Feed the engine a single token (byte or unicode scalar value).
     ///
-    /// If there's a match, `exec` returns `true` and populates the given
-    /// captures accordingly.
-    pub fn exec<I: Input>(
-        &mut self,
-        cache: &mut Cache,
-        matches: &mut [bool],
-        slots: &mut [Slot],
-        start: usize,
-        input: &I,
-    ) {
-        cache.prep_for_next_match();
-        cache.pos = start;
-
-        let mut at = input.at(cache.pos);
-        cache.all_matched = false;
-'LOOP:  loop {
-            let stop = self.next(
-                cache,
-                matches,
-                slots,
-                at,
-                input,
-            );
-
-            if stop || at.is_end() {
-                break;
-            }
-            at = input.at(at.next_pos());
-        }
-    }
-
+    /// Returns whether it's done matching or not:
+    ///     - true: done matching.
+    ///     - false: needs more input to complete matching.
+    ///
+    /// When it indicates that it's done matching, the matches (if any)
+    /// are in `matches` and `slots`.  `matches` and `slots` should not
+    /// be manipulated in between calls if more input is needed, as
+    /// they are used progressively across calls during the matching
+    /// process.
     pub fn next<I: Input>(
         &mut self,
         cache: &mut Cache,

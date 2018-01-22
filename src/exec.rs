@@ -457,31 +457,50 @@ impl<'c> ExecNoSync<'c> {
         text: &[u8],
         start: usize,
     ) -> bool {
+        use input::Input;
         let cache = &mut self.cache.borrow_mut().pikevm;
+        cache.prep_for_next_match();
+
         if self.ro.nfa.uses_bytes() {
+            let input = ByteInput::new(text, self.ro.nfa.only_utf8);
+            let mut at = input.at(start);
             let mut fsm = pikevm::Fsm::new(
                 &self.ro.nfa,
                 quit_after_match,
             );
-            fsm.exec(
-                cache,
-                matches,
-                slots,
-                start,
-                &ByteInput::new(text, self.ro.nfa.only_utf8),
-            );
-        } else {
-            let mut fsm = pikevm::Fsm::new(
-                &self.ro.nfa,
-                quit_after_match,
+            loop {
+                let stop = fsm.next(
+                    cache,
+                    matches,
+                    slots,
+                    at,
+                    &input,
                 );
-            fsm.exec(
-                cache,
-                matches,
-                slots,
-                start,
-                &CharInput::new(text),
+                if stop || at.is_end() {
+                    break;
+                }
+                at = input.at(at.next_pos());
+            }
+        } else {
+            let input = CharInput::new(text);
+            let mut at = input.at(start);
+            let mut fsm = pikevm::Fsm::new(
+                &self.ro.nfa,
+                quit_after_match,
             );
+            loop {
+                let stop = fsm.next(
+                    cache,
+                    matches,
+                    slots,
+                    at,
+                    &input,
+                );
+                if stop || at.is_end() {
+                    break;
+                }
+                at = input.at(at.next_pos());
+            }
         }
 
         matches.iter().any(|b| *b)
