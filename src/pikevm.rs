@@ -156,26 +156,12 @@ impl<'r> Fsm<'r> {
                     break;
                 }
             }
-
-            // This simulates a preceding '.*?' for every regex by adding
-            // a state starting at the current position in the input for the
-            // beginning of the program only if we don't already have a match.
-            if cache.clist.set.is_empty()
-                || (!self.prog.is_anchored_start && !cache.all_matched) {
-                self.add(&mut cache.stack, &mut cache.clist, slots, 0, at, input);
-            }
-            // The previous call to "add" actually inspects the position just
-            // before the current character. For stepping through the machine,
-            // we can to look at the current character, so we advance the
-            // input.
-            let at_next = input.at(at.next_pos());
             
             matched |= self.next(
                 cache,
                 matches,
                 slots,
                 at,
-                at_next,
                 input,
             );
 
@@ -187,7 +173,7 @@ impl<'r> Fsm<'r> {
             if at.is_end() {
                 break;
             }
-            at = at_next;
+            at = input.at(at.next_pos());
             mem::swap(&mut cache.clist, &mut cache.nlist);
             cache.nlist.set.clear();
         }
@@ -199,11 +185,23 @@ impl<'r> Fsm<'r> {
         cache: &mut Cache,
         matches: &mut [bool],
         slots: &mut [Slot],
-        at_prev: InputAt,
         at: InputAt,
         input: &I,
     ) -> bool {
         let mut matched = false;
+
+        // This simulates a preceding '.*?' for every regex by adding
+        // a state starting at the current position in the input for the
+        // beginning of the program only if we don't already have a match.
+        if cache.clist.set.is_empty()
+            || (!self.prog.is_anchored_start && !cache.all_matched) {
+            self.add(&mut cache.stack, &mut cache.clist, slots, 0, at, input);
+        }
+        // The previous call to "add" actually inspects the position just
+        // before the current character. For stepping through the machine,
+        // we can to look at the current character, so we advance the
+        // input.
+        let at_next = input.at(at.next_pos());
 
         // Loop through the threads and run them against this step of input.
         for i in 0..cache.clist.set.len() {
@@ -221,21 +219,21 @@ impl<'r> Fsm<'r> {
                     true
                 }
                 Char(ref inst) => {
-                    if inst.c == at_prev.char() {
-                        self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at, input);
+                    if inst.c == at.char() {
+                        self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
                     }
                     false
                 }
                 Ranges(ref inst) => {
-                    if inst.matches(at_prev.char()) {
-                        self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at, input);
+                    if inst.matches(at.char()) {
+                        self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
                     }
                     false
                 }
                 Bytes(ref inst) => {
-                    if let Some(b) = at_prev.byte() {
+                    if let Some(b) = at.byte() {
                         if inst.matches(b) {
-                            self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at, input);
+                            self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
                         }
                     }
                     false
