@@ -139,25 +139,7 @@ impl<'r> Fsm<'r> {
         let mut matched = false;
         cache.all_matched = false;
 'LOOP:  loop {
-            if cache.clist.set.is_empty() {
-                // Two ways to bail out when our current set of threads is
-                // empty.
-                //
-                // 1. We have a match---so we're done exploring any possible
-                //    alternatives. Time to quit. (We can't do this if we're
-                //    looking for matches for multiple regexes, unless we know
-                //    they all matched.)
-                //
-                // 2. If the expression starts with a '^' we can terminate as
-                //    soon as the last thread dies.
-                if (matched && matches.len() <= 1)
-                    || cache.all_matched
-                    || (!at.is_start() && self.prog.is_anchored_start) {
-                    break;
-                }
-            }
-            
-            matched |= self.next(
+            let (iter_done, found_match) = self.next(
                 cache,
                 matches,
                 slots,
@@ -165,12 +147,9 @@ impl<'r> Fsm<'r> {
                 input,
             );
 
-            if matched && self.quit_after_match {
-                // If we only care if a match occurs (not its
-                // position), then we can quit right now.
-                break;
-            }
-            if at.is_end() {
+            matched |= found_match;
+
+            if iter_done || at.is_end() {
                 break;
             }
             at = input.at(at.next_pos());
@@ -187,8 +166,25 @@ impl<'r> Fsm<'r> {
         slots: &mut [Slot],
         at: InputAt,
         input: &I,
-    ) -> bool {
+    ) -> (bool, bool) {
+        let mut iter_done = false;
         let mut matched = false;
+
+        if cache.clist.set.is_empty() {
+            // Two ways to bail out when our current set of threads is
+            // empty.
+            //
+            // 1. We have a match (or all matches if we're looking for
+            //    matches for multiple regexes)--so we're done exploring
+            //    any possible alternatives. Time to quit.
+            //
+            // 2. If the expression starts with a '^' we can terminate as
+            //    soon as the last thread dies.
+            if cache.all_matched
+                || (!at.is_start() && self.prog.is_anchored_start) {
+                return (true, false);
+            }
+        }
 
         // This simulates a preceding '.*?' for every regex by adding
         // a state starting at the current position in the input for the
@@ -251,6 +247,7 @@ impl<'r> Fsm<'r> {
                 // still need to check threads in the next set to support
                 // things like greedy matching.
                 if self.quit_after_match || self.prog.matches.len() == 1 {
+                    iter_done = self.quit_after_match;
                     break;
                 }
             }
@@ -260,7 +257,7 @@ impl<'r> Fsm<'r> {
             cache.all_matched = cache.all_matched || matches.iter().all(|&b| b);
         }
 
-        return matched;
+        return (iter_done, matched);
     }
 
     /// Follows epsilon transitions and adds them for processing to nlist,
