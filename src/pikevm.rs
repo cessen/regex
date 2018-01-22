@@ -166,39 +166,24 @@ impl<'r> Fsm<'r> {
             // we can to look at the current character, so we advance the
             // input.
             let at_next = input.at(at.next_pos());
-            for i in 0..cache.clist.set.len() {
-                let ip = cache.clist.set[i];
+            
+            let step_result = self.next(
+                cache,
+                matches,
+                slots,
+                at,
+                at_next,
+                input,
+            );
 
-                let step_result = self.next(
-                    cache,
-                    matches,
-                    slots,
-                    ip,
-                    at,
-                    at_next,
-                    input,
-                );
-
-                if step_result {
-                    matched = true;
-                    all_matched = all_matched || matches.iter().all(|&b| b);
-                    if self.quit_after_match {
-                        // If we only care if a match occurs (not its
-                        // position), then we can quit right now.
-                        break 'LOOP;
-                    }
-                    if self.prog.matches.len() == 1 {
-                        // We don't need to check the rest of the threads
-                        // in this set because we've matched something
-                        // ("leftmost-first"). However, we still need to check
-                        // threads in the next set to support things like
-                        // greedy matching.
-                        //
-                        // This is only true on normal regexes. For regex sets,
-                        // we need to mush on to observe other matches.
-                        break;
-                    }
-                }
+            if step_result {
+                matched = true;
+                all_matched = all_matched || matches.iter().all(|&b| b);
+            }
+            if matched && self.quit_after_match {
+                // If we only care if a match occurs (not its
+                // position), then we can quit right now.
+                break;
             }
             if at.is_end() {
                 break;
@@ -215,47 +200,66 @@ impl<'r> Fsm<'r> {
         cache: &mut Cache,
         matches: &mut [bool],
         slots: &mut [Slot],
-        ip: usize,
         at_prev: InputAt,
         at: InputAt,
         input: &I,
     ) -> bool {
-        // Do step
-        use prog::Inst::*;
-        let step_result = match self.prog[ip] {
-            Match(match_slot) => {
-                if match_slot < matches.len() {
-                    matches[match_slot] = true;
+        let mut matched = false;
+
+        // Loop through the threads and run them against this step of input.
+        for i in 0..cache.clist.set.len() {
+            let ip = cache.clist.set[i];
+
+            use prog::Inst::*;
+            let thread_matched = match self.prog[ip] {
+                Match(match_slot) => {
+                    if match_slot < matches.len() {
+                        matches[match_slot] = true;
+                    }
+                    for (slot, val) in slots.iter_mut().zip(cache.clist.caps(ip).iter()) {
+                        *slot = *val;
+                    }
+                    true
                 }
-                for (slot, val) in slots.iter_mut().zip(cache.clist.caps(ip).iter()) {
-                    *slot = *val;
-                }
-                true
-            }
-            Char(ref inst) => {
-                if inst.c == at_prev.char() {
-                    self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at, input);
-                }
-                false
-            }
-            Ranges(ref inst) => {
-                if inst.matches(at_prev.char()) {
-                    self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at, input);
-                }
-                false
-            }
-            Bytes(ref inst) => {
-                if let Some(b) = at_prev.byte() {
-                    if inst.matches(b) {
+                Char(ref inst) => {
+                    if inst.c == at_prev.char() {
                         self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at, input);
                     }
+                    false
                 }
-                false
-            }
-            EmptyLook(_) | Save(_) | Split(_) => false,
-        };
+                Ranges(ref inst) => {
+                    if inst.matches(at_prev.char()) {
+                        self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at, input);
+                    }
+                    false
+                }
+                Bytes(ref inst) => {
+                    if let Some(b) = at_prev.byte() {
+                        if inst.matches(b) {
+                            self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at, input);
+                        }
+                    }
+                    false
+                }
+                EmptyLook(_) | Save(_) | Split(_) => false,
+            };
 
-        return step_result;
+            if thread_matched {
+                matched = true;
+                // If we only care if a match occurs (not its
+                // position), then we can quit right now.
+                // We also don't need to check the rest of the threads
+                // in this set if there's only one match possible because
+                // we've matched something ("leftmost-first"). However, we
+                // still need to check threads in the next set to support
+                // things like greedy matching.
+                if self.quit_after_match || self.prog.matches.len() == 1 {
+                    break;
+                }
+            }
+        }
+
+        return matched;
     }
 
     /// Follows epsilon transitions and adds them for processing to nlist,
