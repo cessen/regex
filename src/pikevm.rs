@@ -53,6 +53,8 @@ pub struct Cache {
     nlist: Threads,
     /// An explicit stack used for following epsilon transitions.
     stack: Vec<FollowEpsilon>,
+    /// Keeps track of whether all matches have been made so far.
+    all_matched: bool,
     /// Input buffer for finding unicode code points.
     char_buffer: [u8; 4],
     char_buffer_len: usize,
@@ -97,6 +99,7 @@ impl Cache {
             clist: clist,
             nlist: nlist,
             stack: vec![],
+            all_matched: false,
             char_buffer: [0; 4],
             char_buffer_len: 0,
             pos: 0,
@@ -134,7 +137,7 @@ impl<'r> Fsm<'r> {
 
         let mut at = input.at(cache.pos);
         let mut matched = false;
-        let mut all_matched = false;
+        cache.all_matched = false;
 'LOOP:  loop {
             if cache.clist.set.is_empty() {
                 // Two ways to bail out when our current set of threads is
@@ -148,7 +151,7 @@ impl<'r> Fsm<'r> {
                 // 2. If the expression starts with a '^' we can terminate as
                 //    soon as the last thread dies.
                 if (matched && matches.len() <= 1)
-                    || all_matched
+                    || cache.all_matched
                     || (!at.is_start() && self.prog.is_anchored_start) {
                     break;
                 }
@@ -158,7 +161,7 @@ impl<'r> Fsm<'r> {
             // a state starting at the current position in the input for the
             // beginning of the program only if we don't already have a match.
             if cache.clist.set.is_empty()
-                || (!self.prog.is_anchored_start && !all_matched) {
+                || (!self.prog.is_anchored_start && !cache.all_matched) {
                 self.add(&mut cache.stack, &mut cache.clist, slots, 0, at, input);
             }
             // The previous call to "add" actually inspects the position just
@@ -167,7 +170,7 @@ impl<'r> Fsm<'r> {
             // input.
             let at_next = input.at(at.next_pos());
             
-            let step_result = self.next(
+            matched |= self.next(
                 cache,
                 matches,
                 slots,
@@ -176,10 +179,6 @@ impl<'r> Fsm<'r> {
                 input,
             );
 
-            if step_result {
-                matched = true;
-                all_matched = all_matched || matches.iter().all(|&b| b);
-            }
             if matched && self.quit_after_match {
                 // If we only care if a match occurs (not its
                 // position), then we can quit right now.
@@ -257,6 +256,10 @@ impl<'r> Fsm<'r> {
                     break;
                 }
             }
+        }
+
+        if matched {
+            cache.all_matched = cache.all_matched || matches.iter().all(|&b| b);
         }
 
         return matched;
