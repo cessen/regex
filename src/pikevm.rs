@@ -216,8 +216,8 @@ impl<'r> Fsm<'r> {
         matches: &mut [bool],
         slots: &mut [Slot],
         ip: usize,
+        at_prev: InputAt,
         at: InputAt,
-        at_next: InputAt,
         input: &I,
     ) -> bool {
         // Do step
@@ -233,21 +233,21 @@ impl<'r> Fsm<'r> {
                 true
             }
             Char(ref inst) => {
-                if inst.c == at.char() {
-                    self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
+                if inst.c == at_prev.char() {
+                    self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at, input);
                 }
                 false
             }
             Ranges(ref inst) => {
-                if inst.matches(at.char()) {
-                    self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
+                if inst.matches(at_prev.char()) {
+                    self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at, input);
                 }
                 false
             }
             Bytes(ref inst) => {
-                if let Some(b) = at.byte() {
+                if let Some(b) = at_prev.byte() {
                     if inst.matches(b) {
-                        self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
+                        self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at, input);
                     }
                 }
                 false
