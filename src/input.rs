@@ -110,7 +110,10 @@ pub trait Input {
 
     /// Return true if the given empty width instruction matches at the
     /// input position given.
-    fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool;
+    fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool {
+        let at_prev = self.prev(at);
+        is_empty_match(at_prev, at, at.pos() == self.len(), self.only_utf8(), empty)
+    }
 
     /// The number of bytes in the input.
     fn len(&self) -> usize;
@@ -132,10 +135,6 @@ impl<'a, T: Input> Input for &'a T {
     fn next_char(&self, at: InputAt) -> Char { (**self).next_char(at) }
 
     fn previous_char(&self, at: InputAt) -> Char { (**self).previous_char(at) }
-
-    fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool {
-        (**self).is_empty_match(at, empty)
-    }
 
     fn len(&self) -> usize { (**self).len() }
 
@@ -180,11 +179,6 @@ impl<'t> Input for CharInput<'t> {
 
     fn previous_char(&self, at: InputAt) -> Char {
         decode_last_utf8(&self[..at.pos()]).map(|(c, _)| c).into()
-    }
-
-    fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool {
-        let at_prev = self.prev(at);
-        is_empty_match(at_prev, at, at.pos() == self.len(), self.only_utf8(), empty)
     }
 
     fn len(&self) -> usize {
@@ -250,11 +244,6 @@ impl<'t> Input for ByteInput<'t> {
 
     fn previous_char(&self, at: InputAt) -> Char {
         decode_last_utf8(&self[..at.pos()]).map(|(c, _)| c).into()
-    }
-
-    fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool {
-        let at_prev = self.prev(at);
-        is_empty_match(at_prev, at, at.pos() == self.len(), self.only_utf8(), empty)
     }
 
     fn len(&self) -> usize {
