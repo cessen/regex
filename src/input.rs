@@ -79,6 +79,25 @@ pub trait Input {
     /// Return an encoding of the position at byte offset `i`.
     fn at(&self, i: usize) -> InputAt;
 
+    /// Returns the `InputAt` just before the given one.
+    fn prev(&self, at: InputAt) -> InputAt {
+        if at.pos() == 0 {
+            InputAt {
+                pos: 0,
+                c: None.into(),
+                byte: None,
+                len: 0,
+            }
+        } else {
+            let prev_char = self.previous_char(at);
+            if prev_char.is_none() {
+                self.at(at.pos() - 1)
+            } else {
+                self.at(at.pos() - prev_char.len_utf8())
+            }
+        }
+    }
+
     /// Return the Unicode character occurring next to `at`.
     ///
     /// If no such character could be decoded, then `Char` is absent.
@@ -101,6 +120,10 @@ pub trait Input {
 
     /// Return the given input as a sequence of bytes.
     fn as_bytes(&self) -> &[u8];
+
+    /// Returns whether or not this input is supposed to only be
+    /// processed as utf8.
+    fn only_utf8(&self) -> bool;
 }
 
 impl<'a, T: Input> Input for &'a T {
@@ -117,6 +140,8 @@ impl<'a, T: Input> Input for &'a T {
     fn len(&self) -> usize { (**self).len() }
 
     fn as_bytes(&self) -> &[u8] { (**self).as_bytes() }
+
+    fn only_utf8(&self) -> bool { (**self).only_utf8() }
 }
 
 /// An input reader over characters.
@@ -158,22 +183,8 @@ impl<'t> Input for CharInput<'t> {
     }
 
     fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool {
-        let at_prev = if at.pos() == 0 {
-            InputAt {
-                pos: 0,
-                c: None.into(),
-                byte: None,
-                len: 0,
-            }
-        } else{
-            let prev_char = self.previous_char(at);
-            if prev_char.is_none() {
-                self.at(at.pos() - 1)
-            } else {
-                self.at(at.pos() - prev_char.len_utf8())
-            }
-        };
-        is_empty_match(at_prev, at, at.pos() == self.len(), true, empty)
+        let at_prev = self.prev(at);
+        is_empty_match(at_prev, at, at.pos() == self.len(), self.only_utf8(), empty)
     }
 
     fn len(&self) -> usize {
@@ -182,6 +193,10 @@ impl<'t> Input for CharInput<'t> {
 
     fn as_bytes(&self) -> &[u8] {
         self.0
+    }
+
+    fn only_utf8(&self) -> bool {
+        true
     }
 }
 
@@ -238,23 +253,8 @@ impl<'t> Input for ByteInput<'t> {
     }
 
     fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool {
-        let at_prev = if at.pos() == 0 {
-            InputAt {
-                pos: 0,
-                c: None.into(),
-                byte: None,
-                len: 0,
-            }
-        } else{
-            let prev_char = self.previous_char(at);
-            if prev_char.is_none() {
-                self.at(at.pos() - 1)
-            } else {
-                self.at(at.pos() - prev_char.len_utf8())
-            }
-        };
-
-        is_empty_match(at_prev, at, at.pos() == self.len(), self.only_utf8, empty)
+        let at_prev = self.prev(at);
+        is_empty_match(at_prev, at, at.pos() == self.len(), self.only_utf8(), empty)
     }
 
     fn len(&self) -> usize {
@@ -263,6 +263,10 @@ impl<'t> Input for ByteInput<'t> {
 
     fn as_bytes(&self) -> &[u8] {
         self.text
+    }
+
+    fn only_utf8(&self) -> bool {
+        self.only_utf8
     }
 }
 
