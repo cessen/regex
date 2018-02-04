@@ -158,35 +158,22 @@ impl<'t> Input for CharInput<'t> {
     }
 
     fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool {
-        use prog::EmptyLook::*;
-        match empty.look {
-            StartLine => {
-                let c = self.previous_char(at);
-                at.pos() == 0 || c == '\n'
+        let at_prev = if at.pos() == 0 {
+            InputAt {
+                pos: 0,
+                c: None.into(),
+                byte: None,
+                len: 0,
             }
-            EndLine => {
-                let c = self.next_char(at);
-                at.pos() == self.len() || c == '\n'
+        } else{
+            let prev_char = self.previous_char(at);
+            if prev_char.is_none() {
+                self.at(at.pos() - 1)
+            } else {
+                self.at(at.pos() - prev_char.len_utf8())
             }
-            StartText => at.pos() == 0,
-            EndText => at.pos() == self.len(),
-            WordBoundary => {
-                let (c1, c2) = (self.previous_char(at), self.next_char(at));
-                c1.is_word_char() != c2.is_word_char()
-            }
-            NotWordBoundary => {
-                let (c1, c2) = (self.previous_char(at), self.next_char(at));
-                c1.is_word_char() == c2.is_word_char()
-            }
-            WordBoundaryAscii => {
-                let (c1, c2) = (self.previous_char(at), self.next_char(at));
-                c1.is_word_byte() != c2.is_word_byte()
-            }
-            NotWordBoundaryAscii => {
-                let (c1, c2) = (self.previous_char(at), self.next_char(at));
-                c1.is_word_byte() == c2.is_word_byte()
-            }
-        }
+        };
+        is_empty_match(at_prev, at, at.pos() == self.len(), true, empty)
     }
 
     fn len(&self) -> usize {
@@ -225,11 +212,20 @@ impl<'t> ops::Deref for ByteInput<'t> {
 
 impl<'t> Input for ByteInput<'t> {
     fn at(&self, i: usize) -> InputAt {
-        InputAt {
-            pos: i,
-            c: None.into(),
-            byte: self.get(i).cloned(),
-            len: 1,
+        if i < self.len() {
+            InputAt {
+                pos: i,
+                c: decode_utf8(&self[i..]).map(|(c, _)| c).into(),
+                byte: self.get(i).cloned(),
+                len: 1,
+            }
+        } else {
+            InputAt {
+                pos: i,
+                c: None.into(),
+                byte: None,
+                len: 0,
+            }
         }
     }
 
@@ -242,55 +238,23 @@ impl<'t> Input for ByteInput<'t> {
     }
 
     fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool {
-        use prog::EmptyLook::*;
-        match empty.look {
-            StartLine => {
-                let c = self.previous_char(at);
-                at.pos() == 0 || c == '\n'
+        let at_prev = if at.pos() == 0 {
+            InputAt {
+                pos: 0,
+                c: None.into(),
+                byte: None,
+                len: 0,
             }
-            EndLine => {
-                let c = self.next_char(at);
-                at.pos() == self.len() || c == '\n'
+        } else{
+            let prev_char = self.previous_char(at);
+            if prev_char.is_none() {
+                self.at(at.pos() - 1)
+            } else {
+                self.at(at.pos() - prev_char.len_utf8())
             }
-            StartText => at.pos() == 0,
-            EndText => at.pos() == self.len(),
-            WordBoundary => {
-                let (c1, c2) = (self.previous_char(at), self.next_char(at));
-                c1.is_word_char() != c2.is_word_char()
-            }
-            NotWordBoundary => {
-                let (c1, c2) = (self.previous_char(at), self.next_char(at));
-                c1.is_word_char() == c2.is_word_char()
-            }
-            WordBoundaryAscii => {
-                let (c1, c2) = (self.previous_char(at), self.next_char(at));
-                if self.only_utf8 {
-                    // If we must match UTF-8, then we can't match word
-                    // boundaries at invalid UTF-8.
-                    if c1.is_none() && !at.is_start() {
-                        return false;
-                    }
-                    if c2.is_none() && !at.is_end() {
-                        return false;
-                    }
-                }
-                c1.is_word_byte() != c2.is_word_byte()
-            }
-            NotWordBoundaryAscii => {
-                let (c1, c2) = (self.previous_char(at), self.next_char(at));
-                if self.only_utf8 {
-                    // If we must match UTF-8, then we can't match word
-                    // boundaries at invalid UTF-8.
-                    if c1.is_none() && !at.is_start() {
-                        return false;
-                    }
-                    if c2.is_none() && !at.is_end() {
-                        return false;
-                    }
-                }
-                c1.is_word_byte() == c2.is_word_byte()
-            }
-        }
+        };
+
+        is_empty_match(at_prev, at, at.pos() == self.len(), self.only_utf8, empty)
     }
 
     fn len(&self) -> usize {
@@ -299,6 +263,54 @@ impl<'t> Input for ByteInput<'t> {
 
     fn as_bytes(&self) -> &[u8] {
         self.text
+    }
+}
+
+pub fn is_empty_match(at_prev: InputAt, at: InputAt, is_end: bool, only_utf8: bool, empty: &InstEmptyLook) -> bool {
+    use prog::EmptyLook::*;
+    let prev_c = at_prev.char();
+    let next_c = at.char();
+    match empty.look {
+        StartLine => {
+            at.pos() == 0 || prev_c == '\n'
+        }
+        EndLine => {
+            is_end || next_c == '\n'
+        }
+        StartText => at.pos() == 0,
+        EndText => is_end,
+        WordBoundary => {
+            prev_c.is_word_char() != next_c.is_word_char()
+        }
+        NotWordBoundary => {
+            prev_c.is_word_char() == next_c.is_word_char()
+        }
+        WordBoundaryAscii => {
+            if only_utf8 {
+                // If we must match UTF-8, then we can't match word
+                // boundaries at invalid UTF-8.
+                if prev_c.is_none() && !at.is_start() {
+                    return false;
+                }
+                if next_c.is_none() && !at.is_end() {
+                    return false;
+                }
+            }
+            prev_c.is_word_byte() != next_c.is_word_byte()
+        }
+        NotWordBoundaryAscii => {
+            if only_utf8 {
+                // If we must match UTF-8, then we can't match word
+                // boundaries at invalid UTF-8.
+                if prev_c.is_none() && !at.is_start() {
+                    return false;
+                }
+                if next_c.is_none() && !at.is_end() {
+                    return false;
+                }
+            }
+            prev_c.is_word_byte() == next_c.is_word_byte()
+        }
     }
 }
 
