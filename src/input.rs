@@ -29,6 +29,16 @@ pub struct InputAt {
 }
 
 impl InputAt {
+    /// Creates an empty `InputAt`.
+    pub fn null() -> Self {
+        InputAt {
+            pos: 0,
+            c: None.into(),
+            byte: None,
+            len: 0,
+        }
+    }
+
     /// Returns true iff this position is at the beginning of the input.
     pub fn is_start(&self) -> bool {
         self.pos == 0
@@ -82,12 +92,7 @@ pub trait Input {
     /// Returns the `InputAt` just before the given one.
     fn prev(&self, at: InputAt) -> InputAt {
         if at.pos() == 0 {
-            InputAt {
-                pos: 0,
-                c: None.into(),
-                byte: None,
-                len: 0,
-            }
+            InputAt::null()
         } else {
             let prev_char = self.previous_char(at);
             if prev_char.is_none() {

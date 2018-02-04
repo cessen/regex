@@ -55,9 +55,8 @@ pub struct Cache {
     stack: Vec<FollowEpsilon>,
     /// Keeps track of whether all matches have been made so far.
     all_matched: bool,
-    /// Input buffer for finding unicode code points.
-    char_buffer: [u8; 4],
-    char_buffer_len: usize,
+    /// The previous input
+    at_prev: InputAt,
     /// The current byte position in the total input
     pos: usize,
 }
@@ -100,8 +99,7 @@ impl Cache {
             nlist: nlist,
             stack: vec![],
             all_matched: false,
-            char_buffer: [0; 4],
-            char_buffer_len: 0,
+            at_prev: InputAt::null(),
             pos: 0,
         }
     }
@@ -177,6 +175,7 @@ impl<'r> Fsm<'r> {
                 input.only_utf8()
             );
         }
+
         // The previous call to "add" actually inspects the position just
         // before the current character. For stepping through the machine,
         // we can to look at the current character, so we advance the
