@@ -167,7 +167,15 @@ impl<'r> Fsm<'r> {
         // beginning of the program only if we don't already have a match.
         if cache.clist.set.is_empty()
             || (!self.prog.is_anchored_start && !cache.all_matched) {
-            self.add(&mut cache.stack, &mut cache.clist, slots, 0, at, input);
+            self.add(&mut cache.stack,
+                &mut cache.clist,
+                slots,
+                0,
+                input.prev(at),
+                at,
+                at.pos() == input.len(),
+                input.only_utf8()
+            );
         }
         // The previous call to "add" actually inspects the position just
         // before the current character. For stepping through the machine,
@@ -195,20 +203,47 @@ impl<'r> Fsm<'r> {
                 }
                 Char(ref inst) => {
                     if inst.c == at.char() {
-                        self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
+                        self.add(
+                            &mut cache.stack,
+                            &mut cache.nlist,
+                            cache.clist.caps(ip),
+                            inst.goto,
+                            at,
+                            at_next,
+                            at_next.pos() == input.len(),
+                            input.only_utf8()
+                        );
                     }
                     false
                 }
                 Ranges(ref inst) => {
                     if inst.matches(at.char()) {
-                        self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
+                        self.add(
+                            &mut cache.stack,
+                            &mut cache.nlist,
+                            cache.clist.caps(ip),
+                            inst.goto,
+                            at,
+                            at_next,
+                            at_next.pos() == input.len(),
+                            input.only_utf8()
+                        );
                     }
                     false
                 }
                 Bytes(ref inst) => {
                     if let Some(b) = at.byte() {
                         if inst.matches(b) {
-                            self.add(&mut cache.stack, &mut cache.nlist, cache.clist.caps(ip), inst.goto, at_next, input);
+                            self.add(
+                                &mut cache.stack,
+                                &mut cache.nlist,
+                                cache.clist.caps(ip),
+                                inst.goto,
+                                at,
+                                at_next,
+                                at_next.pos() == input.len(),
+                                input.only_utf8()
+                            );
                         }
                     }
                     false
@@ -243,14 +278,16 @@ impl<'r> Fsm<'r> {
 
     /// Follows epsilon transitions and adds them for processing to nlist,
     /// starting at and including ip.
-    fn add<I: Input>(
+    fn add(
         &mut self,
         stack: &mut Vec<FollowEpsilon>,
         nlist: &mut Threads,
         thread_caps: &mut [Option<usize>],
         ip: usize,
+        at_prev: InputAt,
         at: InputAt,
-        input: &I,
+        is_last: bool,
+        only_utf8: bool,
     ) {
         stack.push(FollowEpsilon::IP(ip));
         while let Some(frame) = stack.pop() {
@@ -269,13 +306,12 @@ impl<'r> Fsm<'r> {
                         nlist.set.insert(ip);
                         match self.prog[ip] {
                             EmptyLook(ref inst) => {
-                                let at_prev = input.prev(at);
                                 if is_empty_match(
-                                    at_prev, 
-                                    at, 
-                                    at.pos() == input.len(), 
-                                    input.only_utf8(), 
-                                    inst
+                                    at_prev,
+                                    at,
+                                    is_last,
+                                    only_utf8,
+                                    inst,
                                 ) {
                                     ip = inst.goto;
                                 }
