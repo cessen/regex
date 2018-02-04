@@ -27,7 +27,7 @@
 
 use std::mem;
 
-use input::{Input, InputAt};
+use input::{Input, InputAt, is_empty_match};
 use prog::{Program, InstPtr};
 use re_trait::Slot;
 use sparse::SparseSet;
@@ -269,7 +269,14 @@ impl<'r> Fsm<'r> {
                         nlist.set.insert(ip);
                         match self.prog[ip] {
                             EmptyLook(ref inst) => {
-                                if input.is_empty_match(at, inst) {
+                                let at_prev = input.prev(at);
+                                if is_empty_match(
+                                    at_prev, 
+                                    at, 
+                                    at.pos() == input.len(), 
+                                    input.only_utf8(), 
+                                    inst
+                                ) {
                                     ip = inst.goto;
                                 }
                             }

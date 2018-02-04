@@ -108,13 +108,6 @@ pub trait Input {
     /// If no such character could be decoded, then `Char` is absent.
     fn previous_char(&self, at: InputAt) -> Char;
 
-    /// Return true if the given empty width instruction matches at the
-    /// input position given.
-    fn is_empty_match(&self, at: InputAt, empty: &InstEmptyLook) -> bool {
-        let at_prev = self.prev(at);
-        is_empty_match(at_prev, at, at.pos() == self.len(), self.only_utf8(), empty)
-    }
-
     /// The number of bytes in the input.
     fn len(&self) -> usize;
 
