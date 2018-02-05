@@ -186,7 +186,6 @@ impl<'r> Fsm<'r> {
                 ip,
                 at_prev,
                 at,
-                at.pos() == input.len(),
                 input.only_utf8()
             );
         }
@@ -282,7 +281,6 @@ impl<'r> Fsm<'r> {
         ip: usize,
         at_prev: InputAt,
         at: InputAt,
-        is_last: bool,
         only_utf8: bool,
     ) {
         stack.push(FollowEpsilon::IP(ip));
@@ -305,7 +303,6 @@ impl<'r> Fsm<'r> {
                                 if is_empty_match(
                                     at_prev,
                                     at,
-                                    is_last,
                                     only_utf8,
                                     inst,
                                 ) {

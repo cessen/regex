@@ -257,7 +257,7 @@ impl<'t> Input for ByteInput<'t> {
     }
 }
 
-pub fn is_empty_match(at_prev: InputAt, at: InputAt, is_end: bool, only_utf8: bool, empty: &InstEmptyLook) -> bool {
+pub fn is_empty_match(at_prev: InputAt, at: InputAt, only_utf8: bool, empty: &InstEmptyLook) -> bool {
     use prog::EmptyLook::*;
     let prev_c = at_prev.char();
     let next_c = at.char();
@@ -266,10 +266,10 @@ pub fn is_empty_match(at_prev: InputAt, at: InputAt, is_end: bool, only_utf8: bo
             at.pos() == 0 || prev_c == '\n'
         }
         EndLine => {
-            is_end || next_c == '\n'
+            at.is_end() || next_c == '\n'
         }
         StartText => at.pos() == 0,
-        EndText => is_end,
+        EndText => at.is_end(),
         WordBoundary => {
             prev_c.is_word_char() != next_c.is_word_char()
         }
