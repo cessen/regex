@@ -459,7 +459,11 @@ impl<'c> ExecNoSync<'c> {
     ) -> bool {
         use input::Input;
         let cache = &mut self.cache.borrow_mut().pikevm;
-        cache.prep_for_next_match();
+        if start == 0 {
+            cache.reset();
+        } else {
+            cache.prep_for_next_match();
+        }
 
         if self.ro.nfa.uses_bytes() {
             let input = ByteInput::new(text, self.ro.nfa.only_utf8);

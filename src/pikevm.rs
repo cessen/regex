@@ -109,6 +109,11 @@ impl Cache {
         self.nlist.set.clear();
         self.all_matched = false;
     }
+
+    pub fn reset(&mut self) {
+        self.prep_for_next_match();
+        self.at_prev = InputAt::null();
+    }
 }
 
 impl<'r> Fsm<'r> {
