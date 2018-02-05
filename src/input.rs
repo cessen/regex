@@ -39,6 +39,26 @@ impl InputAt {
         }
     }
 
+    /// Creates the next token for processing from
+    /// the current token and the literal next token.
+    ///
+    /// The difference between this and just copying,
+    /// is that this holds onto the current `char` until
+    /// the next valid `char`, instead of just overwriting
+    /// it with Empty on in-between bytes.
+    pub fn set_next(&mut self, next: InputAt) {
+        if next.c.is_none() && next.byte.is_none() {
+            *self = next;
+        } else {
+            self.pos = next.pos;
+            self.byte = next.byte;
+            self.len = next.len;
+            if !next.c.is_none() {
+                self.c = next.c;
+            }
+        }
+    }
+
     /// Returns true iff this position is at the beginning of the input.
     pub fn is_start(&self) -> bool {
         self.pos == 0

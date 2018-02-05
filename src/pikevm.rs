@@ -25,7 +25,7 @@
 // Therefore, the Pike VM is generally treated as the fallback when the other
 // matching engines either aren't feasible to run or are insufficient.
 
-use input::{Input, InputAt, is_empty_match};
+use input::{InputAt, is_empty_match};
 use prog::{Program, InstPtr};
 use re_trait::Slot;
 use sparse::SparseSet;
@@ -137,17 +137,17 @@ impl<'r> Fsm<'r> {
     /// be manipulated in between calls if more input is needed, as
     /// they are used progressively across calls during the matching
     /// process.
-    pub fn next<I: Input>(
+    pub fn next(
         &mut self,
         cache: &mut Cache,
         matches: &mut [bool],
         slots: &mut [Slot],
         at: InputAt,
-        input: &I,
+        only_utf8: bool,
     ) -> bool {
         let mut stop = false;
 
-        let at_prev = input.prev(at);
+        let at_prev = cache.at_prev;
 
         // Early-out: if the expression starts with a '^' we can terminate as
         // soon as the last thread dies.
@@ -178,7 +178,7 @@ impl<'r> Fsm<'r> {
                 ip,
                 at_prev,
                 at,
-                input.only_utf8()
+                only_utf8
             );
         }
 
@@ -246,6 +246,8 @@ impl<'r> Fsm<'r> {
         if cache.clist.set.is_empty() && cache.all_matched {
             stop = true;
         }
+
+        cache.at_prev.set_next(at);
 
         return stop;
     }

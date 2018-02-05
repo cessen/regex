@@ -478,7 +478,7 @@ impl<'c> ExecNoSync<'c> {
                     matches,
                     slots,
                     at,
-                    &input,
+                    input.only_utf8(),
                 );
                 if stop || at.is_end() {
                     break;
@@ -498,7 +498,7 @@ impl<'c> ExecNoSync<'c> {
                     matches,
                     slots,
                     at,
-                    &input,
+                    input.only_utf8(),
                 );
                 if stop || at.is_end() {
                     break;
