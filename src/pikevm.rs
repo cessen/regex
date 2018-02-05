@@ -170,7 +170,7 @@ impl<'r> Fsm<'r> {
         // beginning of the program only if we don't already have a match.
         if cache.clist.set.is_empty()
             || (!self.prog.is_anchored_start && !cache.all_matched) {
-            self.add(&mut cache.stack,
+            self.add_with_epsilon_processing(&mut cache.stack,
                 &mut cache.clist,
                 slots,
                 0,
@@ -207,7 +207,7 @@ impl<'r> Fsm<'r> {
                 }
                 Char(ref inst) => {
                     if inst.c == at.char() {
-                        self.add(
+                        self.add_with_epsilon_processing(
                             &mut cache.stack,
                             &mut cache.nlist,
                             cache.clist.caps(ip),
@@ -222,7 +222,7 @@ impl<'r> Fsm<'r> {
                 }
                 Ranges(ref inst) => {
                     if inst.matches(at.char()) {
-                        self.add(
+                        self.add_with_epsilon_processing(
                             &mut cache.stack,
                             &mut cache.nlist,
                             cache.clist.caps(ip),
@@ -238,7 +238,7 @@ impl<'r> Fsm<'r> {
                 Bytes(ref inst) => {
                     if let Some(b) = at.byte() {
                         if inst.matches(b) {
-                            self.add(
+                            self.add_with_epsilon_processing(
                                 &mut cache.stack,
                                 &mut cache.nlist,
                                 cache.clist.caps(ip),
@@ -272,17 +272,15 @@ impl<'r> Fsm<'r> {
             cache.all_matched = cache.all_matched || matches.iter().all(|&b| b);
         }
 
-        if !stop {
-            mem::swap(&mut cache.clist, &mut cache.nlist);
-            cache.nlist.set.clear();
-        }
+        mem::swap(&mut cache.clist, &mut cache.nlist);
+        cache.nlist.set.clear();
 
         return stop;
     }
 
     /// Follows epsilon transitions and adds them for processing to nlist,
     /// starting at and including ip.
-    fn add(
+    fn add_with_epsilon_processing(
         &mut self,
         stack: &mut Vec<FollowEpsilon>,
         nlist: &mut Threads,
@@ -350,6 +348,24 @@ impl<'r> Fsm<'r> {
             }
         }
     }
+
+    // // Adds an instruction and copies associated captures to nlist.
+    // // Does no additional processing (e.g. of epsilons).
+    // fn add(
+    //     &mut self,
+    //     nlist: &mut Threads,
+    //     thread_caps: &mut [Option<usize>],
+    //     ip: usize,
+    // ) {
+    //     // Only add if it's not already added
+    //     if !nlist.set.contains(ip) {
+    //         nlist.set.insert(ip);
+    //         let t = &mut nlist.caps(ip);
+    //         for (slot, val) in t.iter_mut().zip(thread_caps.iter()) {
+    //             *slot = *val;
+    //         }
+    //     }
+    // }
 }
 
 impl Threads {
