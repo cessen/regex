@@ -149,20 +149,12 @@ impl<'r> Fsm<'r> {
 
         let at_prev = input.prev(at);
 
-        if cache.clist.set.is_empty() {
-            // Two ways to bail out when our current set of threads is
-            // empty.
-            //
-            // 1. We have a match (or all matches if we're looking for
-            //    matches for multiple regexes)--so we're done exploring
-            //    any possible alternatives. Time to quit.
-            //
-            // 2. If the expression starts with a '^' we can terminate as
-            //    soon as the last thread dies.
-            if cache.all_matched
-                || (!at.is_start() && self.prog.is_anchored_start) {
-                return true;
-            }
+        // Early-out: if the expression starts with a '^' we can terminate as
+        // soon as the last thread dies.
+        if cache.clist.set.is_empty()
+            && !at.is_start()
+            && self.prog.is_anchored_start {
+            return true;
         }
 
         // This simulates a preceding '.*?' for every regex by adding
@@ -248,6 +240,11 @@ impl<'r> Fsm<'r> {
 
         if matched {
             cache.all_matched = cache.all_matched || matches.iter().all(|&b| b);
+        }
+
+        // If all threads are finished and everything is matched, we can stop.
+        if cache.clist.set.is_empty() && cache.all_matched {
+            stop = true;
         }
 
         return stop;
